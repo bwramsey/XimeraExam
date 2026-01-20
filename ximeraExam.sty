@@ -75,36 +75,50 @@
 \newenvironment{xmExam@ignoreDocument}{\ignorespaces}{\ignorespaces}
 
 % ------------------------------------------------------------
-% addexamproblem environment (FIXED)
+% addexamproblem environment
+% -> allows us to import an existing ximera document to be added
+%    as exam problems.
 % ------------------------------------------------------------
 \makeatletter
 
 \newenvironment{addexamproblem}[1]{%
-  % Reset nesting depth
+  % Reset depth tracker for this import
   \setcounter{xmExam@problemDepth}{0}
 
-  % Save original environments (IMPORTANT: no 'problem')
+  % Save original Ximera environments
   \xmExam@saveEnv{exercise}
   \xmExam@saveEnv{question}
 
   % Suppress document-level constructs
   \xmExam@suppressDocumentPreamble
 
-  % Neutralize the document environment
+  % Neutralize document environment itself
   \let\document\xmExam@ignoreDocument
   \let\enddocument\endxmExam@ignoreDocument
 
-  % Redefine exercise → examproblem
+  % ------------------------------------------------
+  % CRITICAL DESIGN DECISION:
+  % Imported exercises/questions become content only.
+  % They NEVER emit their own headers.
+  % ------------------------------------------------
+
   \renewenvironment{exercise}
-    {\xmExam@wrapProblem{exercise}\xmExam@orig@exercise}
-    {\xmExam@orig@end@exercise\xmExam@endWrapProblem}
+    {%
+      \xmExam@wrapProblem{exercise}%
+    }
+    {%
+      \xmExam@endWrapProblem%
+    }
 
-  % Redefine question → examproblem
   \renewenvironment{question}
-    {\xmExam@wrapProblem{question}\xmExam@orig@question}
-    {\xmExam@orig@end@question\xmExam@endWrapProblem}
+    {%
+      \xmExam@wrapProblem{question}%
+    }
+    {%
+      \xmExam@endWrapProblem%
+    }
 
-  % Input the file
+  % Import the Ximera document
   \input{#1}
 
 }{%
