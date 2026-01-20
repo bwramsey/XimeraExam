@@ -1,0 +1,38 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{ximeraExam}[2026/01/20 Exam-only wrapper for Ximera]
+
+% Exams always have an abstract
+\providecommand{\theabstract}{}
+
+% ------------------------------------------------
+% Counter
+% ------------------------------------------------
+\newcounter{examproblem}
+\renewcommand{\theexamproblem}{\arabic{examproblem}}
+
+% ------------------------------------------------
+% examproblems environment
+% ------------------------------------------------
+\newenvironment{examproblems}{
+  \setcounter{examproblem}{0}
+}{}
+
+% ------------------------------------------------
+% examproblem environment
+% ------------------------------------------------
+\newenvironment{examproblem}{
+  \refstepcounter{examproblem}
+  \begin{problem}[2in]
+}{
+  \end{problem}
+}
+
+% ------------------------------------------------
+% addexamproblem environment
+% ------------------------------------------------
+\newenvironment{addexamproblem}[1]{
+  \begin{examproblem}
+  \input{#1}
+}{
+  \end{examproblem}
+}
