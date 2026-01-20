@@ -1,25 +1,17 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{ximeraExam}[2026/01/20 Exam-only wrapper for Ximera]
+\ProvidesPackage{ximeraExam}[2026/01/20 Ximera exam helpers]
 
-% Exams always have an abstract
+% ------------------------------------------------------------
+% Exams always define an abstract (required by ximera.cls)
+% ------------------------------------------------------------
 \providecommand{\theabstract}{}
 
-% ------------------------------------------------
-% Counter
-% ------------------------------------------------
+% ------------------------------------------------------------
+% Exam problem environment (already agreed-on)
+% ------------------------------------------------------------
 \newcounter{examproblem}
 \renewcommand{\theexamproblem}{\arabic{examproblem}}
 
-% ------------------------------------------------
-% examproblems environment
-% ------------------------------------------------
-\newenvironment{examproblems}{
-  \setcounter{examproblem}{0}
-}{}
-
-% ------------------------------------------------
-% examproblem environment
-% ------------------------------------------------
 \newenvironment{examproblem}{
   \refstepcounter{examproblem}
   \begin{problem}[2in]
@@ -27,12 +19,98 @@
   \end{problem}
 }
 
-% ------------------------------------------------
-% addexamproblem environment
-% ------------------------------------------------
-\newenvironment{addexamproblem}[1]{
-  \begin{examproblem}
-  \input{#1}
-}{
-  \end{examproblem}
+\newenvironment{examproblems}{
+  \setcounter{examproblem}{0}
+}{}
+
+% ------------------------------------------------------------
+% Internals for addexamproblem
+% ------------------------------------------------------------
+\makeatletter
+
+% Save original environment definitions
+\newcommand{\xmExam@saveEnv}[1]{%
+  \expandafter\let\csname xmExam@orig@#1\expandafter\endcsname\csname #1\endcsname
+  \expandafter\let\csname xmExam@orig@end@#1\expandafter\endcsname\csname end#1\endcsname
 }
+
+\newcommand{\xmExam@restoreEnv}[1]{%
+  \expandafter\let\csname #1\expandafter\endcsname\csname xmExam@orig@#1\endcsname
+  \expandafter\let\csname end#1\expandafter\endcsname\csname xmExam@orig@end@#1\endcsname
+}
+
+% Counter to track nesting of problem-like environments
+\newcounter{xmExam@problemDepth}
+
+% Generic wrapper used for exercise/problem/question
+\newcommand{\xmExam@wrapProblem}[1]{%
+  \stepcounter{xmExam@problemDepth}%
+  \ifnum\value{xmExam@problemDepth}=1
+    \begin{examproblem}
+  \fi
+}
+
+\newcommand{\xmExam@endWrapProblem}{%
+  \ifnum\value{xmExam@problemDepth}=1
+    \end{examproblem}
+  \fi
+  \addtocounter{xmExam@problemDepth}{-1}%
+}
+
+% ------------------------------------------------------------
+% Suppress document-level commands during import
+% ------------------------------------------------------------
+\newcommand{\xmExam@suppressDocumentPreamble}{%
+  \let\documentclass\@gobble
+  \let\author\@gobble
+  \let\outcome\@gobble
+  \let\maketitle\relax
+}
+
+\newcommand{\xmExam@restoreDocumentPreamble}{%
+  % Nothing needed: document-level commands aren’t used again
+}
+
+% Neutralize document environment itself
+\newenvironment{xmExam@ignoreDocument}{\ignorespaces}{\ignorespaces}
+
+% ------------------------------------------------------------
+% addexamproblem environment (FIXED)
+% ------------------------------------------------------------
+\makeatletter
+
+\newenvironment{addexamproblem}[1]{%
+  % Reset nesting depth
+  \setcounter{xmExam@problemDepth}{0}
+
+  % Save original environments (IMPORTANT: no 'problem')
+  \xmExam@saveEnv{exercise}
+  \xmExam@saveEnv{question}
+
+  % Suppress document-level constructs
+  \xmExam@suppressDocumentPreamble
+
+  % Neutralize the document environment
+  \let\document\xmExam@ignoreDocument
+  \let\enddocument\endxmExam@ignoreDocument
+
+  % Redefine exercise → examproblem
+  \renewenvironment{exercise}
+    {\xmExam@wrapProblem{exercise}\xmExam@orig@exercise}
+    {\xmExam@orig@end@exercise\xmExam@endWrapProblem}
+
+  % Redefine question → examproblem
+  \renewenvironment{question}
+    {\xmExam@wrapProblem{question}\xmExam@orig@question}
+    {\xmExam@orig@end@question\xmExam@endWrapProblem}
+
+  % Input the file
+  \input{#1}
+
+}{%
+  % Restore original environments
+  \xmExam@restoreEnv{exercise}
+  \xmExam@restoreEnv{question}
+}
+
+\makeatother
