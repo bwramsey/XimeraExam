@@ -1,0 +1,1227 @@
+%% ximeraExam.sty
+%% Exam-style structure for Ximera documents.
+%% Version 1.7.1 -- Response spacing, breakable solutions, and bonus summaries.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesExplPackage
+  {ximeraExam}
+  {2026-09-20}
+  {1.7.1}
+  {Exam-style question structure for Ximera}
+
+\RequirePackage{l3keys2e}
+\RequirePackage{array}
+
+\ExplSyntaxOn
+
+% Keep the assessment mode explicit so later features can branch cleanly.
+\tl_new:N \g_ximeraexam_mode_tl
+\tl_gset:Nn \g_ximeraexam_mode_tl { points }
+
+\keys_define:nn { ximeraExam }
+  {
+    points .code:n = { \tl_gset:Nn \g_ximeraexam_mode_tl { points } },
+    standards .code:n = { \tl_gset:Nn \g_ximeraexam_mode_tl { standards } },
+    points .value_forbidden:n = true,
+    standards .value_forbidden:n = true,
+  }
+
+\ProcessKeysOptions { ximeraExam }
+
+% Save question metadata now so the summary table can use it in Phase 2.
+% The values stay generic here: points mode will interpret numbers later, while
+% standards mode keeps labels such as AL2, AL4 exactly as the author supplied them.
+\prop_new:N \g_ximeraexam_question_metadata_prop
+\prop_new:N \g_ximeraexam_question_bonus_prop
+\seq_new:N  \g_ximeraexam_question_order_seq
+
+\cs_new_protected:Npn \ximeraexam_store_question:nnn #1#2#3
+  {
+    \ximeraexam_plain_metadata:nN {#2} \l_tmpf_tl
+    \prop_gput:NnV \g_ximeraexam_question_metadata_prop {#1} \l_tmpf_tl
+    \prop_gput:Nnn \g_ximeraexam_question_bonus_prop {#1} {#3}
+    \seq_gput_right:Nn \g_ximeraexam_question_order_seq {#1}
+  }
+
+% Expose the current mode for diagnostics and later package features.
+\NewExpandableDocumentCommand{\ximeraExamMode}{}
+  { \tl_use:N \g_ximeraexam_mode_tl }
+
+% The template controls how an individual marked standard and the complete
+% metadata label look. The default marked-standard hook leaves its code alone.
+\NewDocumentCommand{\markStandard}{m}{#1}
+\NewDocumentCommand{\standardsLabel}{m}{[#1]}
+\NewDocumentCommand{\pointsLabel}{m}{[#1~points]}
+
+% Use the display hooks beside assessment items, never in summary-table data.
+\cs_new:Npn \ximeraexam_metadata_display:n #1
+  {
+    \tl_if_blank:nF {#1}
+      {
+        \nobreakspace
+        \tl_if_eq:NnTF \g_ximeraexam_mode_tl { points }
+          {\pointsLabel{#1}}
+          {\standardsLabel{#1}}
+      }
+  }
+
+% Remove presentation-only marking before storing standards for inheritance,
+% deduplication, and the cover-page summary. This does not change the label's
+% original metadata argument, so its marked form still prints beside the item.
+\seq_new:N \l_ximeraexam_plain_standards_seq
+\cs_generate_variant:Nn \seq_gput_right:Nn {NV}
+\tl_new:N \l_ximeraexam_plain_standard_tl
+\cs_new_protected:Npn \ximeraexam_plain_metadata:nN #1#2
+  {
+    \tl_set:Nn #2 {#1}
+    \tl_if_eq:NnT \g_ximeraexam_mode_tl {standards}
+      {
+        \seq_clear:N \l_ximeraexam_plain_standards_seq
+        \clist_map_inline:nn {#1}
+          {
+            \group_begin:
+              \tl_set:Nn \l_ximeraexam_plain_standard_tl {##1}
+              \tl_replace_all:Nnn \l_ximeraexam_plain_standard_tl
+                {\markStandard} {\@firstofone}
+              \tl_set:Nx \l_ximeraexam_plain_standard_tl
+                {\l_ximeraexam_plain_standard_tl}
+              \seq_gput_right:NV \l_ximeraexam_plain_standards_seq
+                \l_ximeraexam_plain_standard_tl
+            \group_end:
+          }
+        \tl_set:Nx #2
+          {\seq_use:Nn \l_ximeraexam_plain_standards_seq {,~}}
+      }
+  }
+
+% Keep each question and child item in a flat tree. Explicit metadata overrides
+% the metadata computed from children, while a blank entry inherits their sum
+% (points mode) or ordered, deduplicated union (standards mode).
+\prop_new:N \g_ximeraexam_explicit_prop
+\prop_new:N \g_ximeraexam_children_prop
+\prop_new:N \g_ximeraexam_bonus_node_prop
+\seq_new:N \g_ximeraexam_nodes_seq
+\tl_new:N \g_ximeraexam_current_question_tl
+\tl_new:N \g_ximeraexam_current_part_tl
+\tl_new:N \g_ximeraexam_current_subpart_tl
+\int_new:N \g_ximeraexam_question_id_int
+\int_new:N \g_ximeraexam_part_id_int
+\int_new:N \g_ximeraexam_subpart_id_int
+\int_new:N \g_ximeraexam_subsubpart_id_int
+\prop_new:N \g_ximeraexam_resolved_prop
+\prop_new:N \g_ximeraexam_previous_meta_prop
+\prop_new:N \g_ximeraexam_previous_bonus_prop
+\seq_new:N \g_ximeraexam_previous_questions_seq
+\bool_new:N \g_ximeraexam_previous_ready_bool
+
+\cs_new_protected:Npn \ximeraexam_register:nnnn #1#2#3#4
+  {
+    \ximeraexam_plain_metadata:nN {#2} \l_tmpf_tl
+    \prop_gput:NnV \g_ximeraexam_explicit_prop {#1} \l_tmpf_tl
+    \prop_gput:Nnn \g_ximeraexam_bonus_node_prop {#1} {#4}
+    \prop_gput:Nnn \g_ximeraexam_children_prop {#1} { }
+    \seq_gput_right:Nn \g_ximeraexam_nodes_seq {#1}
+    \tl_if_blank:nF {#3}
+      {
+        \prop_get:NnN \g_ximeraexam_children_prop {#3} \l_tmpa_tl
+        \tl_if_blank:VTF \l_tmpa_tl
+          { \prop_gput:Nnn \g_ximeraexam_children_prop {#3} {#1} }
+          { \prop_gput:Nnx \g_ximeraexam_children_prop {#3} {\exp_not:V \l_tmpa_tl , #1} }
+      }
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn {Nnx}
+
+\cs_generate_variant:Nn \ximeraexam_register:nnnn {Vnnn,VnVn,xnVn}
+\cs_new_protected:Npn \ximeraexam_register_question:nn #1#2
+  {
+    \tl_gset:Nx \g_ximeraexam_current_question_tl {Q\arabic{ximeraExamQuestion}}
+    \tl_gclear:N \g_ximeraexam_current_part_tl
+    \tl_gclear:N \g_ximeraexam_current_subpart_tl
+    \ximeraexam_register:Vnnn \g_ximeraexam_current_question_tl {#1} {} {#2}
+  }
+\cs_new_protected:Npn \ximeraexam_register_part:n #1
+  {
+    \int_gincr:N \g_ximeraexam_part_id_int
+    \tl_gset:Nx \g_ximeraexam_current_part_tl {P\int_use:N \g_ximeraexam_part_id_int}
+    \tl_gclear:N \g_ximeraexam_current_subpart_tl
+    \ximeraexam_register:VnVn \g_ximeraexam_current_part_tl {#1} \g_ximeraexam_current_question_tl {false}
+  }
+\cs_new_protected:Npn \ximeraexam_register_subpart:n #1
+  {
+    \int_gincr:N \g_ximeraexam_subpart_id_int
+    \tl_gset:Nx \g_ximeraexam_current_subpart_tl {S\int_use:N \g_ximeraexam_subpart_id_int}
+    \ximeraexam_register:VnVn \g_ximeraexam_current_subpart_tl {#1} \g_ximeraexam_current_part_tl {false}
+  }
+\cs_new_protected:Npn \ximeraexam_register_subsubpart:n #1
+  {
+    \int_gincr:N \g_ximeraexam_subsubpart_id_int
+    \ximeraexam_register:xnVn {U\int_use:N \g_ximeraexam_subsubpart_id_int} {#1} \g_ximeraexam_current_subpart_tl {false}
+  }
+
+% Combine inherited standards in first-appearance order, ignoring duplicates.
+\seq_new:N \l_ximeraexam_standards_seq
+\cs_generate_variant:Nn \seq_if_in:NnF {NVF}
+\cs_generate_variant:Nn \seq_put_right:Nn {NV}
+\cs_new_protected:Npn \ximeraexam_add_standards:n #1
+  {
+    \clist_map_inline:nn {#1}
+      {
+        \tl_set:Nx \l_tmpb_tl {\tl_trim_spaces:n {##1}}
+        \tl_if_blank:VF \l_tmpb_tl
+          {\seq_if_in:NVF \l_ximeraexam_standards_seq \l_tmpb_tl
+            {\seq_put_right:NV \l_ximeraexam_standards_seq \l_tmpb_tl}}
+      }
+  }
+\cs_new_protected:Npn \ximeraexam_resolve:nN #1#2
+  {
+    \prop_get:NnN \g_ximeraexam_explicit_prop {#1} #2
+    \tl_if_blank:VTF #2
+      {
+        \tl_clear:N #2
+        \prop_get:NnN \g_ximeraexam_children_prop {#1} \l_tmpa_tl
+        \tl_if_blank:VF \l_tmpa_tl
+          {
+            \tl_if_eq:NnTF \g_ximeraexam_mode_tl {points}
+              {
+                \fp_zero:N \l_tmpa_fp
+                \exp_args:NV \clist_map_inline:nn \l_tmpa_tl
+                  {\prop_get:NnN \g_ximeraexam_resolved_prop {##1} \l_tmpc_tl
+                   \tl_if_blank:VF \l_tmpc_tl {\fp_add:Nn \l_tmpa_fp {\l_tmpc_tl}}}
+                \tl_set:Nx #2 {\fp_eval:n {round(\l_tmpa_fp,4)}}
+              }
+              {
+                \seq_clear:N \l_ximeraexam_standards_seq
+                \exp_args:NV \clist_map_inline:nn \l_tmpa_tl
+                  {\prop_get:NnN \g_ximeraexam_resolved_prop {##1} \l_tmpc_tl
+                   \exp_args:NV \ximeraexam_add_standards:n \l_tmpc_tl}
+                \tl_set:Nx #2 {\seq_use:Nn \l_ximeraexam_standards_seq {,~}}
+              }
+          }
+      }
+      { }
+  }
+
+% TeX reads the previous run's question data before the cover is typeset.
+\cs_new_protected:Npn \ximeraExamAuxEntry #1#2#3
+  {
+    \bool_gset_true:N \g_ximeraexam_previous_ready_bool
+    \seq_gput_right:Nn \g_ximeraexam_previous_questions_seq {#1}
+    \prop_gput:Nnn \g_ximeraexam_previous_meta_prop {#1} {#2}
+    \prop_gput:Nnn \g_ximeraexam_previous_bonus_prop {#1} {#3}
+  }
+\cs_new_protected:Npn \ximeraexam_write_summary:
+  {
+    \prop_gclear:N \g_ximeraexam_resolved_prop
+    \seq_reverse:N \g_ximeraexam_nodes_seq
+    \seq_map_inline:Nn \g_ximeraexam_nodes_seq
+      {\ximeraexam_resolve:nN {##1} \l_tmpd_tl
+       \prop_gput:NnV \g_ximeraexam_resolved_prop {##1} \l_tmpd_tl}
+    \seq_reverse:N \g_ximeraexam_nodes_seq
+    \iow_now:Nx \@auxout {\string\ximeraExamAuxBegin}
+    \seq_map_inline:Nn \g_ximeraexam_question_order_seq
+      {
+        \ximeraexam_resolve:nN {Q##1} \l_tmpd_tl
+        \prop_get:NnN \g_ximeraexam_question_bonus_prop {##1} \l_tmpe_tl
+        \iow_now:Nx \@auxout
+          {\string\ximeraExamAuxEntry{##1}{\exp_not:V \l_tmpd_tl}{\exp_not:V \l_tmpe_tl}}
+      }
+    \iow_now:Nx \@auxout {\string\ximeraExamAuxEnd}
+  }
+\cs_new_protected:Npn \ximeraExamAuxBegin
+  {\seq_gclear:N \g_ximeraexam_previous_questions_seq
+   \prop_gclear:N \g_ximeraexam_previous_meta_prop
+   \prop_gclear:N \g_ximeraexam_previous_bonus_prop
+   \bool_gset_false:N \g_ximeraexam_previous_ready_bool}
+\cs_new_protected:Npn \ximeraExamAuxEnd { }
+
+\ExplSyntaxOff
+
+
+% Store document-level exam information separately from Ximera's title rendering.
+% The title is also copied into LaTeX's document-property container so the
+% PDF-management layer can write a dc:title entry into the XMP metadata.
+\ExplSyntaxOn
+\tl_new:N \g_ximeraexam_title_tl
+\tl_new:N \g_ximeraexam_course_tl
+\tl_new:N \g_ximeraexam_date_tl
+\tl_new:N \g_ximeraexam_version_tl
+
+\cs_new_protected:Npn \ximeraexam_set_pdf_title:n #1
+  {
+    \cs_if_exist:NT \AddToDocumentProperties
+      { \AddToDocumentProperties[hyperref]{pdftitle}{#1} }
+  }
+
+\NewDocumentCommand{\examtitle}{m}
+  {
+    \tl_gset:Nn \g_ximeraexam_title_tl {#1}
+    \ximeraexam_set_pdf_title:n {#1}
+    \cs_if_exist:NT \hypersetup
+      { \hypersetup{pdftitle={#1}} }
+    \cs_if_exist:NT \title { \title{#1} }
+  }
+
+\NewDocumentCommand{\examcourse}{m}
+  { \tl_gset:Nn \g_ximeraexam_course_tl {#1} }
+
+\NewDocumentCommand{\examdate}{m}
+  { \tl_gset:Nn \g_ximeraexam_date_tl {#1} }
+
+\NewDocumentCommand{\examversion}{m}
+  { \tl_gset:Nn \g_ximeraexam_version_tl {#1} }
+
+\NewExpandableDocumentCommand{\examtitletext}{}
+  { \tl_use:N \g_ximeraexam_title_tl }
+
+\NewExpandableDocumentCommand{\examcoursetext}{}
+  { \tl_use:N \g_ximeraexam_course_tl }
+
+\NewExpandableDocumentCommand{\examdatetext}{}
+  { \tl_use:N \g_ximeraexam_date_tl }
+
+\NewExpandableDocumentCommand{\examversiontext}{}
+  { \tl_use:N \g_ximeraexam_version_tl }
+
+% Print optional cover fields only when the author has supplied a value.
+\cs_new_protected:Npn \ximeraExamPrintCourse
+  {
+    \tl_if_blank:VTF \g_ximeraexam_course_tl
+      { }
+      { \textbf{Course:}~\tl_use:N \g_ximeraexam_course_tl \par }
+  }
+
+\cs_new_protected:Npn \ximeraExamPrintDate
+  {
+    \tl_if_blank:VTF \g_ximeraexam_date_tl
+      { }
+      { \textbf{Date:}~\tl_use:N \g_ximeraexam_date_tl \par }
+  }
+
+\cs_new_protected:Npn \ximeraExamPrintVersion
+  {
+    \tl_if_blank:VTF \g_ximeraexam_version_tl
+      { }
+      { \textbf{Version:}~\tl_use:N \g_ximeraexam_version_tl \par }
+  }
+\ExplSyntaxOff
+
+% Use private counters so Ximera and xourse counters stay untouched.
+\newcounter{ximeraExamQuestion}
+\newcounter{ximeraExamPart}[ximeraExamQuestion]
+\newcounter{ximeraExamSubpart}[ximeraExamPart]
+\newcounter{ximeraExamSubsubpart}[ximeraExamSubpart]
+
+% Keep numbering and visible labels separately customizable.
+% Authors can change how each level looks without changing the counters that
+% drive references, metadata storage, and the later question table.
+\newcommand{\questionnumber}{\arabic{ximeraExamQuestion}}
+\newcommand{\partnumber}{\alph{ximeraExamPart}}
+\newcommand{\subpartnumber}{\roman{ximeraExamSubpart}}
+\newcommand{\subsubpartnumber}{\Alph{ximeraExamSubsubpart}}
+
+\newcommand{\questionlabel}{\textbf{Question~\questionnumber}}
+\newcommand{\bonusquestionlabel}{\textbf{Bonus Question~\questionnumber}}
+\newcommand{\partlabel}{(\partnumber)}
+\newcommand{\subpartlabel}{(\subpartnumber)}
+\newcommand{\subsubpartlabel}{(\subsubpartnumber)}
+
+% Keep list layout in one place for each hierarchy level.
+% These hooks give us room to tune the printed exam later without changing the
+% semantic question commands or the list structure used by tagged PDF output.
+\newcommand{\ximeraExamQuestionListSetup}{%
+  \setlength{\leftmargin}{0pt}%
+  \setlength{\labelwidth}{0pt}%
+  \setlength{\labelsep}{0.5em}%
+  \setlength{\itemindent}{0pt}%
+  \setlength{\listparindent}{0pt}%
+  \setlength{\parsep}{0pt}%
+  \setlength{\topsep}{0.8\baselineskip}%
+  \setlength{\itemsep}{0.8\baselineskip}%
+}
+
+
+% Measure each question label before starting the item.
+% This keeps the label at the left margin while giving the question text enough
+% room for either short point values or longer standards lists.
+\newlength{\ximeraExamQuestionLabelWidth}
+\NewDocumentCommand{\ximeraExamQuestionItem}{m}{%
+  \settowidth{\ximeraExamQuestionLabelWidth}{#1}%
+  \setlength{\labelwidth}{\ximeraExamQuestionLabelWidth}%
+  \setlength{\itemindent}{\dimexpr\labelwidth+\labelsep\relax}%
+  \item[#1]%
+}
+
+\newcommand{\ximeraExamPartListSetup}{%
+  \setlength{\leftmargin}{2.5em}%
+  \setlength{\labelwidth}{2em}%
+  \setlength{\labelsep}{0.5em}%
+  \setlength{\itemsep}{0.5\baselineskip}%
+}
+
+\newcommand{\ximeraExamSubpartListSetup}{%
+  \setlength{\leftmargin}{2.5em}%
+  \setlength{\labelwidth}{2em}%
+  \setlength{\labelsep}{0.5em}%
+  \setlength{\itemsep}{0.35\baselineskip}%
+}
+
+\newcommand{\ximeraExamSubsubpartListSetup}{%
+  \setlength{\leftmargin}{2.5em}%
+  \setlength{\labelwidth}{2em}%
+  \setlength{\labelsep}{0.5em}%
+  \setlength{\itemsep}{0.25\baselineskip}%
+}
+
+% Keep expl3 internals behind ordinary LaTeX command names.
+\ExplSyntaxOn
+\cs_new_protected:Npn \ximeraExamStoreQuestion #1#2#3
+  { \exp_args:Nx \ximeraexam_store_question:nnn {#1} {#2} {#3} \ximeraexam_register_question:nn {#2}{#3} }
+\cs_new_protected:Npn \ximeraExamClearQuestionData
+  {
+    \prop_gclear:N \g_ximeraexam_question_metadata_prop
+    \prop_gclear:N \g_ximeraexam_question_bonus_prop
+    \seq_gclear:N  \g_ximeraexam_question_order_seq
+    \prop_gclear:N \g_ximeraexam_explicit_prop
+    \prop_gclear:N \g_ximeraexam_children_prop
+    \prop_gclear:N \g_ximeraexam_resolved_prop
+    \seq_gclear:N \g_ximeraexam_nodes_seq
+  }
+\cs_new:Npn \ximeraExamMetadataDisplay #1
+  { \ximeraexam_metadata_display:n {#1} }
+\cs_new_protected:Npn \ximeraExamRegisterPart #1 { \ximeraexam_register_part:n {#1} }
+\cs_new_protected:Npn \ximeraExamRegisterSubpart #1 { \ximeraexam_register_subpart:n {#1} }
+\cs_new_protected:Npn \ximeraExamRegisterSubsubpart #1 { \ximeraexam_register_subsubpart:n {#1} }
+\ExplSyntaxOff
+
+% Start a normal question and save its assessment metadata.
+% Bonus and ordinary questions share one counter so numbering stays in the
+% natural exam sequence: Question 1, Question 2, Bonus Question 3.
+\NewDocumentCommand{\ximeraExamQuestion}{O{}}{%
+  \refstepcounter{ximeraExamQuestion}%
+  \setcounter{ximeraExamPart}{0}%
+  \ximeraExamStoreQuestion{\arabic{ximeraExamQuestion}}{#1}{false}%
+  \ximeraExamQuestionItem{\questionlabel\ximeraExamMetadataDisplay{#1}}%
+}
+
+% Start a bonus question but keep it separate from ordinary totals later.
+\NewDocumentCommand{\ximeraExamBonusQuestion}{O{}}{%
+  \refstepcounter{ximeraExamQuestion}%
+  \setcounter{ximeraExamPart}{0}%
+  \ximeraExamStoreQuestion{\arabic{ximeraExamQuestion}}{#1}{true}%
+  \ximeraExamQuestionItem{\bonusquestionlabel\ximeraExamMetadataDisplay{#1}}%
+}
+
+% Make \question and \bonusquestion available only inside questions.
+% Reset the stored metadata too, so a second questions environment in the same
+% document does not accidentally reuse entries from the first one.
+\NewDocumentEnvironment{questions}{}
+  {%
+    \setcounter{ximeraExamQuestion}{0}%
+    \ximeraExamClearQuestionData
+    \begin{list}{}{\ximeraExamQuestionListSetup}%
+    \let\question\ximeraExamQuestion
+    \let\bonusquestion\ximeraExamBonusQuestion
+  }
+  {%
+    \end{list}%
+    \ximeraExamWriteSummary
+  }
+
+% Parts are local so xourse can keep using its normal \part command elsewhere.
+\NewDocumentCommand{\ximeraExamPart}{O{}}{%
+  \refstepcounter{ximeraExamPart}%
+  \ximeraExamRegisterPart{#1}%
+  \setcounter{ximeraExamSubpart}{0}%
+  \item[\partlabel]\ximeraExamMetadataDisplay{#1}%
+}
+
+\NewDocumentEnvironment{parts}{}
+  {%
+    \setcounter{ximeraExamPart}{0}%
+    \begin{list}{}{\ximeraExamPartListSetup}%
+    \let\part\ximeraExamPart
+  }
+  {%
+    \end{list}%
+  }
+
+% Subparts follow the same local-command pattern.
+\NewDocumentCommand{\ximeraExamSubpart}{O{}}{%
+  \refstepcounter{ximeraExamSubpart}%
+  \ximeraExamRegisterSubpart{#1}%
+  \setcounter{ximeraExamSubsubpart}{0}%
+  \item[\subpartlabel]\ximeraExamMetadataDisplay{#1}%
+}
+
+\NewDocumentEnvironment{subparts}{}
+  {%
+    \setcounter{ximeraExamSubpart}{0}%
+    \begin{list}{}{\ximeraExamSubpartListSetup}%
+    \let\subpart\ximeraExamSubpart
+  }
+  {%
+    \end{list}%
+  }
+
+% Subsubparts are inexpensive to support even if most courses never use them.
+\NewDocumentCommand{\ximeraExamSubsubpart}{O{}}{%
+  \refstepcounter{ximeraExamSubsubpart}%
+  \ximeraExamRegisterSubsubpart{#1}%
+  \item[\subsubpartlabel]\ximeraExamMetadataDisplay{#1}%
+}
+
+\NewDocumentEnvironment{subsubparts}{}
+  {%
+    \setcounter{ximeraExamSubsubpart}{0}%
+    \begin{list}{}{\ximeraExamSubsubpartListSetup}%
+    \let\subsubpart\ximeraExamSubsubpart
+  }
+  {%
+    \end{list}%
+  }
+
+% Keep cover-page content outside the question hierarchy.
+% The environment stays intentionally lightweight so instructors can build a
+% custom first page without affecting question numbering or stored metadata.
+\NewDocumentEnvironment{examcover}{}
+  {%
+    \begingroup
+    \thispagestyle{empty}%
+  }
+  {%
+    \par
+    \endgroup
+    \clearpage
+  }
+
+% Provide a simple default cover without using Ximera's custom \maketitle.
+% Ximera formats section headings through titlesec, so the cover title uses a
+% small tagged heading of its own instead of borrowing \section or \section*.
+\newcommand{\examnameprompt}{Name:}
+\newcommand{\examnamefield}{\rule{3in}{0.4pt}}
+\newcommand{\examcoverbeforetitle}{}
+\newcommand{\examcoveraftertitle}{\bigskip}
+
+% Keep the visible heading independent of the tagging commands.
+% This hook is easy to restyle without changing the H1 structure around it.
+\newcommand{\examcoverheadingformat}[1]{%
+  \par\noindent
+  {\Large\bfseries #1\par}%
+}
+
+% Give the cover title H1 semantics without invoking Ximera's titlesec setup.
+% Turn off automatic paragraph tagging just for this heading so LaTeX does not
+% place its normal Part/P paragraph structure inside the H1 element.
+\newcommand{\examcoverheading}[1]{%
+  \ifcsname tagstructbegin\endcsname
+    \tagpdfparaOff
+    \tagstructbegin{tag=H1}%
+    \tagmcbegin{tag=H1}%
+      \examcoverheadingformat{#1}%
+    \tagmcend
+    \tagstructend
+    \tagpdfparaOn
+  \else
+    \examcoverheadingformat{#1}%
+  \fi
+}
+
+\NewDocumentCommand{\makeexamcover}{}{%
+  \begin{examcover}%
+    \examcoverbeforetitle
+    \examcoverheading{\examtitletext}%
+    \examcoveraftertitle
+    \begingroup
+      \setlength{\parindent}{0pt}%
+      \ximeraExamPrintCourse
+      \ximeraExamPrintDate
+      \ximeraExamPrintVersion
+      \bigskip
+      \examnameprompt\ \examnamefield\par
+    \endgroup
+  \end{examcover}%
+}
+
+% Ximera's public problem-like environments are wrappers around shared
+% start/end commands. Call those shared commands directly for nested activity
+% structure so later local redefinitions cannot recurse through the wrappers.
+\makeatletter
+\let\ximeraExamProblemEnvironmentStart\problemEnvironmentStart
+\let\ximeraExamProblemEnvironmentEnd\problemEnvironmentEnd
+\makeatother
+
+% Reuse the same inclusion strategy that xourse uses for full Ximera activities.
+% Ignore the child document class and preamble, then restore ordinary \input once
+% the included file reaches its document body.
+\makeatletter
+\let\ximeraExamOriginalInput\input
+
+\newcommand{\ximeraExamSkipActivityPreamble}{%
+  \let\document\relax
+  \let\enddocument\relax
+  \newenvironment{document}{\let\input\ximeraExamOriginalInput}{}%
+  \renewcommand{\documentclass}[2][subfiles]{}%
+}
+
+% Treat the outermost activity wrapper as the existing exam question.
+% Each deeper wrapper owns its own list and item, so LaTeX closes that list
+% before closing the source environment. Exam counters are global across
+% sibling wrappers, even though their list environments are separate.
+\newcount\ximeraExamActivityProblemDepth
+\newcommand{\ximeraExamImportedBegin}[1]{%
+  \advance\ximeraExamActivityProblemDepth by 1\relax
+  \ifcase\ximeraExamActivityProblemDepth
+    \relax
+  \or
+    % The exam already started the numbered question.
+  \or
+    \refstepcounter{ximeraExamPart}%
+    \setcounter{ximeraExamSubpart}{0}%
+    \begin{list}{}{\ximeraExamPartListSetup}%
+      \item[\partlabel]%
+  \or
+    \refstepcounter{ximeraExamSubpart}%
+    \setcounter{ximeraExamSubsubpart}{0}%
+    \begin{list}{}{\ximeraExamSubpartListSetup}%
+      \item[\subpartlabel]%
+  \or
+    \refstepcounter{ximeraExamSubsubpart}%
+    \begin{list}{}{\ximeraExamSubsubpartListSetup}%
+      \item[\subsubpartlabel]%
+  \else
+    \PackageError{ximeraExam}{Imported activity exceeds four problem levels}%
+      {The outer activity counts as the exam question; only three nested levels are supported.}%
+  \fi
+}
+\newcommand{\ximeraExamImportedEnd}{%
+  \ifcase\ximeraExamActivityProblemDepth
+  \or
+    % No list was opened by the outermost activity wrapper.
+  \or \end{list}%
+  \or \end{list}%
+  \or \end{list}%
+  \else
+  \fi
+  \advance\ximeraExamActivityProblemDepth by -1\relax
+}
+
+% Match all four problem-like environment names used by Ximera activities.
+% The optional original spacing parameter remains accepted but unused.
+\newcommand{\ximeraExamPrepareProblemEnvironments}{%
+  \ximeraExamActivityProblemDepth=0\relax
+  \renewenvironment{exercise}[1][2in]{\ximeraExamImportedBegin{##1}}{\ximeraExamImportedEnd}%
+  \renewenvironment{problem}[1][2in]{\ximeraExamImportedBegin{##1}}{\ximeraExamImportedEnd}%
+  \renewenvironment{exploration}[1][2in]{\ximeraExamImportedBegin{##1}}{\ximeraExamImportedEnd}%
+  \renewenvironment{question}[1][2in]{\ximeraExamImportedBegin{##1}}{\ximeraExamImportedEnd}%
+}
+
+% Include one complete Ximera activity without asking authors to maintain a
+% second body-only file. Everything here is local to the included activity so
+% its preamble and environment changes cannot leak into the rest of the exam.
+\newcommand{\ximeraExamIncludeActivity}[1]{%
+  \IfFileExists{#1}{%
+    \begingroup
+      \let\input\@gobble
+      \ximeraExamSkipActivityPreamble
+      \ximeraExamPrepareProblemEnvironments
+      \ximeraExamOriginalInput{#1}%
+    \endgroup
+  }{%
+    \PackageError{ximeraExam}
+      {Ximera activity file `#1' not found}
+      {Check the filename and path passed to \string\ximeraQuestion.}%
+  }%
+}
+\makeatother
+
+% Start a normal exam question, then insert the body of a complete Ximera file.
+% The exam owns the points or standards metadata; the activity file stays reusable.
+\NewDocumentCommand{\ximeraQuestion}{O{}m}{%
+  \ximeraExamQuestion[#1]%
+  \ximeraExamIncludeActivity{#2}%
+}
+
+
+% -----------------------------------------------------------------------------
+% Student and answer-key behavior
+% -----------------------------------------------------------------------------
+
+% Default to the student version. Authors can switch to an answer key in the
+% preamble with \printanswers and return with \noprintanswers, matching the
+% familiar exam-class workflow.
+\newif\ifximeraExamPrintAnswers
+\ximeraExamPrintAnswersfalse
+
+\newcommand{\printanswers}{\ximeraExamPrintAnswerstrue}
+\newcommand{\noprintanswers}{\ximeraExamPrintAnswersfalse}
+
+% -----------------------------------------------------------------------------
+% Short-answer writing lines
+% -----------------------------------------------------------------------------
+%
+% Keep response-line formatting separate from answer and solution storage.
+% An empty label makes an inline line; a nonempty label makes a standalone row.
+\ExplSyntaxOn
+\dim_new:N \g_ximeraexam_answerline_width_dim
+\dim_gset:Nn \g_ximeraexam_answerline_width_dim { 2in }
+\dim_new:N \l_ximeraexam_answerline_width_dim
+\dim_new:N \l_ximeraexam_answerline_gap_dim
+\dim_set:Nn \l_ximeraexam_answerline_gap_dim { .5em }
+\tl_new:N \g_ximeraexam_answerline_align_tl
+\tl_gset:Nn \g_ximeraexam_answerline_align_tl { left }
+\tl_new:N \l_ximeraexam_answerline_align_tl
+\bool_new:N \g_ximeraexam_answerline_show_in_key_bool
+\box_new:N \l_ximeraexam_answerline_label_box
+
+% Validate template-wide settings instead of silently accepting a typo.
+\msg_new:nnn { ximeraExam } { answerline-choice }
+  { Invalid~answer-line~setting~'#1'.~Use~#2. }
+\NewDocumentCommand \answerlineAlign { m }
+  {
+    \str_case:nnF {#1}
+      {
+        {left}{\tl_gset:Nn \g_ximeraexam_answerline_align_tl {left}}
+        {right}{\tl_gset:Nn \g_ximeraexam_answerline_align_tl {right}}
+      }
+      {\msg_error:nnnn {ximeraExam}{answerline-choice}{#1}{left~or~right}}
+  }
+\NewDocumentCommand \answerlineWidth { m }
+  { \dim_gset:Nn \g_ximeraexam_answerline_width_dim {#1} }
+\NewDocumentCommand \answerlineInKey { m }
+  {
+    \str_case:nnF {#1}
+      {
+        {hide}{\bool_gset_false:N \g_ximeraexam_answerline_show_in_key_bool}
+        {show}{\bool_gset_true:N \g_ximeraexam_answerline_show_in_key_bool}
+      }
+      {\msg_error:nnnn {ximeraExam}{answerline-choice}{#1}{show~or~hide}}
+  }
+
+% Each line starts from the current global defaults; local options affect only
+% that line. Alignment is meaningful only for standalone labeled lines.
+\keys_define:nn { ximeraExam / answerline }
+  {
+    width .dim_set:N = \l_ximeraexam_answerline_width_dim,
+    align .choice:,
+    align / left .code:n = {\tl_set:Nn \l_ximeraexam_answerline_align_tl {left}},
+    align / right .code:n = {\tl_set:Nn \l_ximeraexam_answerline_align_tl {right}},
+  }
+\cs_new_protected:Npn \ximeraexam_answerline_rule:
+  {\rule[-.2ex]{\l_ximeraexam_answerline_width_dim}{.4pt}}
+\cs_new_protected:Npn \ximeraexam_answerline_standalone:n #1
+  {
+    \par\noindent
+    \hbox_set:Nn \l_ximeraexam_answerline_label_box {#1}
+    \dim_compare:nNnTF
+      {\box_wd:N \l_ximeraexam_answerline_label_box
+       + \l_ximeraexam_answerline_gap_dim
+       + \l_ximeraexam_answerline_width_dim} > {\linewidth}
+      {
+        % A long label stays intact; the full writing line goes below it.
+        \box_use:N \l_ximeraexam_answerline_label_box \par\noindent
+        \ximeraexam_answerline_aligned:n {\ximeraexam_answerline_rule:}
+      }
+      {
+        \ximeraexam_answerline_aligned:n
+          {\box_use:N \l_ximeraexam_answerline_label_box
+           \hspace{\l_ximeraexam_answerline_gap_dim}
+           \ximeraexam_answerline_rule:}
+      }
+    \par
+  }
+\cs_new_protected:Npn \ximeraexam_answerline_aligned:n #1
+  {
+    \str_if_eq:VnTF \l_ximeraexam_answerline_align_tl {right}
+      {\hfill #1}
+      {#1}
+  }
+\NewDocumentCommand \answerline { O{} m }
+  {
+    \group_begin:
+      \dim_set_eq:NN \l_ximeraexam_answerline_width_dim
+        \g_ximeraexam_answerline_width_dim
+      \tl_set_eq:NN \l_ximeraexam_answerline_align_tl
+        \g_ximeraexam_answerline_align_tl
+      \keys_set:nn { ximeraExam / answerline } {#1}
+      \tl_if_blank:nTF {#2}
+        {\nobreak\hbox{\ximeraexam_answerline_rule:}}
+        {
+          \ifximeraExamPrintAnswers
+            \bool_if:NT \g_ximeraexam_answerline_show_in_key_bool
+              {\ximeraexam_answerline_standalone:n {#2}}
+          \else
+            \ximeraexam_answerline_standalone:n {#2}
+          \fi
+        }
+    \group_end:
+  }
+\ExplSyntaxOff
+
+% Leave Ximera's native answer and choice commands alone in the HTML build.
+% The web version already knows how to make these constructs interactive; the
+% overrides below exist only to control their printed PDF behavior.
+\ifdefined\HCode
+\else
+
+% Use ordinary text for the key marker instead of Ximera's checkmark glyph.
+% That checkmark currently resolves to .notdef in LuaLaTeX and fails PDF/UA-2.
+% Keeping this as a hook also makes the visible key treatment easy to customize.
+\newcommand{\correctchoicemark}{\nobreakspace\textbf{(correct)}}
+
+% Keep student answer blanks and printed key answers separately customizable.
+% Reuse Ximera's existing format hooks so course-wide formatting still applies.
+\newcommand{\studentanswerformat}[1]{\handoutAnswerFormat{#1}}
+\newcommand{\keyanswerformat}[1]{\answerFormatPlain{#1}}
+\newcommand{\givenanswerformat}[1]{\answerFormatPlain{#1}}
+
+% Ximera stores answer and choice state in @-named commands. Keep those details
+% local to this implementation block instead of exposing them in the public API.
+\makeatletter
+
+% Replace Ximera's PDF answer command with exam-aware behavior.
+% Given answers stay visible in both modes. Ordinary answers become blanks for
+% students and print plainly in the answer key.
+\RenewDocumentCommand{\answer}{O{}m}{%
+  \ifmmode
+    \setkeys{answer}{#1}%
+    \recordvariable{\ans@id}%
+    \ifthenelse{\boolean{\ans@given}}{%
+      \givenanswerformat{#2}%
+    }{%
+      \ifximeraExamPrintAnswers
+        \keyanswerformat{#2}%
+      \else
+        \studentanswerformat{#2}%
+      \fi
+    }%
+  \else
+    \GenericError{\space\space\space\space}%
+      {Attempt to use \string\answer outside of math mode}%
+      {See the Ximera documentation for explanation.}%
+      {Use \string\answer inside inline or display math.}%
+  \fi
+}
+
+% Print each ordinary multiple-choice option in both modes. Correct choices are
+% indistinguishable in the student version and receive a text marker in the key.
+\RenewDocumentCommand{\choice}{O{}m}{%
+  \setkeys{choice}{#1}%
+  \item{#2}%
+  \ifthenelse{\boolean{\choice@correct}}{%
+    \ifximeraExamPrintAnswers
+      \correctchoicemark
+    \fi
+    \setkeys{choice}{correct=false}%
+  }{}%
+}
+
+% Keep the expanded-choice variant consistent with the ordinary choice command.
+\RenewDocumentCommand{\choiceEXP}{O{}m}{%
+  \expandafter\setkeys\expandafter{choice}{#1}%
+  \item{#2}%
+  \ifthenelse{\boolean{\choice@correct}}{%
+    \ifximeraExamPrintAnswers
+      \correctchoicemark
+    \fi
+    \setkeys{choice}{correct=false}%
+  }{}%
+}
+
+% Ximera's wordChoice temporarily maps \choice to \inlinechoice. Mirror the
+% ordinary choice behavior here so word choices use the same student/key rules.
+% Ximera tightens the web rendering with negative space around the choices; for
+% print, use thin spaces so the parentheses and slash separators do not crowd text.
+\RenewDocumentCommand{\inlinechoice}{O{}m}{%
+  \setkeys{choice}{#1}%
+  \iffirstinlinechoice
+    (\,%
+    \firstinlinechoicefalse
+  \else
+    /\,%
+  \fi
+  #2%
+  \ifthenelse{\boolean{\choice@correct}}{%
+    \ifximeraExamPrintAnswers
+      \correctchoicemark
+    \fi
+    \setkeys{choice}{correct=false}%
+  }{}%
+  \,\ignorespaces
+}
+
+% When Ximera is configured to show only the selected word choice, preserve that
+% behavior and add the same accessible key marker only when answers are printed.
+\RenewDocumentCommand{\otherchoice}{O{}m}{%
+  \ignorespaces
+  \setkeys{otherchoice}{#1}%
+  \ifthenelse{\boolean{\otherchoice@correct}}{%
+    #2%
+    \ifximeraExamPrintAnswers
+      \correctchoicemark
+    \fi
+    \setkeys{otherchoice}{correct=false}%
+  }{}%
+  \ignorespaces
+}
+
+\makeatother
+
+
+% Hide explanatory environments completely in the student version. In the
+% answer key, show their contents with plain text labels that remain easy to
+% read and tag in the PDF. Feedback keeps its Ximera trigger in the label.
+\newcommand{\ximeraExamKeyBlock}[2]{%
+  \par\smallskip
+  \noindent\textbf{#1}\ #2\par
+  \smallskip
+}
+
+\RenewEnviron{hint}{%
+  \ifximeraExamPrintAnswers
+    \ximeraExamKeyBlock{Hint:}{\BODY}%
+  \fi
+}
+
+% Let a long answer-key solution break naturally across pages. Each page gets
+% its own complete border; the Solution label appears only at the beginning.
+% Match the old fbox's rule and padding as closely as possible.
+\RequirePackage[breakable,skins]{tcolorbox}
+\newcommand{\ximeraExamSolutionBox}[1]{%
+  \par\smallskip
+  \begin{tcolorbox}[
+    enhanced jigsaw,
+    breakable,
+    colback=white,
+    colframe=black,
+    boxrule=\fboxrule,
+    arc=0pt,
+    outer arc=0pt,
+    boxsep=\fboxsep,
+    left=0pt,right=0pt,top=0pt,bottom=0pt,
+    before skip=0pt,after skip=0pt
+  ]%
+    \textbf{Solution:}\ #1%
+  \end{tcolorbox}%
+  \par\smallskip
+}
+
+% Reserve the requested writing space only in the student version.  A blank
+% optional argument preserves the original behavior (no reserved space).
+% Use starred vertical space so it survives when placed at a page boundary;
+% the argument can be a fixed length or flexible glue such as \stretch{1}.
+\RenewEnviron{solution}[1][]{%
+  \ifximeraExamPrintAnswers
+    \ximeraExamSolutionBox{\BODY}%
+  \else
+    \if\relax\detokenize{#1}\relax
+    \else
+      \par\vspace*{#1}%
+    \fi
+  \fi
+}
+
+\RenewEnviron{feedback}[1][attempt]{%
+  \ifximeraExamPrintAnswers
+    \ximeraExamKeyBlock{Feedback (#1):}{\BODY}%
+  \fi
+}
+\fi
+
+
+
+% Write the resolved question summaries at the end of the questions list.
+\ExplSyntaxOn
+\cs_new_protected:Npn \ximeraExamWriteSummary {\ximeraexam_write_summary:}
+
+% Collect complete table rows before opening an alignment. Generating rows while
+% TeX is reading tabular cells can leave a stray empty row after the last rule.
+\bool_new:N \l_ximeraexam_earned_bool
+\tl_new:N \l_ximeraexam_orientation_tl
+\tl_new:N \l_ximeraexam_rows_tl
+\tl_new:N \l_ximeraexam_header_tl
+\tl_new:N \l_ximeraexam_values_tl
+\tl_new:N \l_ximeraexam_earned_tl
+\int_new:N \l_ximeraexam_limit_int
+\int_new:N \l_ximeraexam_start_int
+\int_new:N \l_ximeraexam_end_int
+\int_new:N \l_ximeraexam_count_int
+\int_new:N \l_ximeraexam_columns_int
+\dim_new:N \l_ximeraexam_cell_dim
+\fp_new:N \l_ximeraexam_total_fp
+\fp_new:N \l_ximeraexam_bonus_fp
+\cs_new_protected:Npn \ximeraexam_question_heading:n #1
+  {
+    \prop_get:NnN \g_ximeraexam_previous_bonus_prop {#1} \l_tmpa_tl
+    \str_if_eq:VnT \l_tmpa_tl {true} {Bonus~}
+    #1
+  }
+\cs_new_protected:Npn \ximeraexam_sum:
+  {
+    \fp_zero:N \l_ximeraexam_total_fp
+    \fp_zero:N \l_ximeraexam_bonus_fp
+    \seq_map_inline:Nn \g_ximeraexam_previous_questions_seq
+      {
+        \prop_get:NnN \g_ximeraexam_previous_meta_prop {##1} \l_tmpa_tl
+        \prop_get:NnN \g_ximeraexam_previous_bonus_prop {##1} \l_tmpb_tl
+        \tl_if_blank:VF \l_tmpa_tl
+          {\str_if_eq:VnTF \l_tmpb_tl {true}
+             {\fp_add:Nn \l_ximeraexam_bonus_fp {\l_tmpa_tl}}
+             {\fp_add:Nn \l_ximeraexam_total_fp {\l_tmpa_tl}}}
+      }
+  }
+
+% Finish each row explicitly; only insert row separators between actual rows.
+\cs_new_protected:Npn \ximeraexam_row_end:
+  {\tl_put_right:Nn \l_ximeraexam_rows_tl {\tabularnewline \hline}}
+\cs_new_protected:Npn \ximeraexam_table_vertical:n #1
+  {
+    \tl_clear:N \l_ximeraexam_rows_tl
+    \tl_put_right:Nn \l_ximeraexam_rows_tl {\hline
+      \textbf{Question} &}
+    \str_if_eq:nnTF {#1}{points}
+      {\tl_put_right:Nn \l_ximeraexam_rows_tl {\textbf{Points}}}
+      {\tl_put_right:Nn \l_ximeraexam_rows_tl {\textbf{Standards}}}
+    \bool_if:NT \l_ximeraexam_earned_bool
+      {\tl_put_right:Nn \l_ximeraexam_rows_tl {& \textbf{Earned}}}
+    \ximeraexam_row_end:
+    \seq_map_inline:Nn \g_ximeraexam_previous_questions_seq
+      {
+        \tl_put_right:Nn \l_ximeraexam_rows_tl
+          {\ximeraexam_question_heading:n {##1} &
+           \prop_item:Nn \g_ximeraexam_previous_meta_prop {##1}}
+        \bool_if:NT \l_ximeraexam_earned_bool
+          {\tl_put_right:Nn \l_ximeraexam_rows_tl {&}}
+        \ximeraexam_row_end:
+      }
+    \str_if_eq:nnT {#1}{points}
+      {
+        \tl_put_right:Nx \l_ximeraexam_rows_tl
+          {\exp_not:n {\textbf{Total} &}
+           \fp_eval:n {round(\l_ximeraexam_total_fp,4)}}
+        \bool_if:NT \l_ximeraexam_earned_bool
+          {\tl_put_right:Nn \l_ximeraexam_rows_tl {&}}
+        \ximeraexam_row_end:
+        \fp_compare:nNnT {\l_ximeraexam_bonus_fp} > {0}
+          {
+            \tl_put_right:Nx \l_ximeraexam_rows_tl
+              {\exp_not:n {\textbf{Bonus~total} &}
+               \fp_eval:n {round(\l_ximeraexam_bonus_fp,4)}}
+            \bool_if:NT \l_ximeraexam_earned_bool
+              {\tl_put_right:Nn \l_ximeraexam_rows_tl {&}}
+            \ximeraexam_row_end:
+          }
+      }
+    \group_begin:
+    \cs_if_exist:NT \tagpdfsetup
+      {\tagpdfsetup{table/header-rows={1},table/header-columns={1}}}
+    \bool_if:NTF \l_ximeraexam_earned_bool
+      {\begin{tabular}{|c|c|c|}}
+      {\begin{tabular}{|c|c|}}
+    \tl_use:N \l_ximeraexam_rows_tl
+    \end{tabular}
+    \group_end:
+  }
+
+% Each horizontal block has a label column plus up to the requested number of
+% question columns. A points total belongs only to the final block.
+\cs_new_protected:Npn \ximeraexam_table_horizontal_block:n #1
+  {
+    \int_set:Nn \l_ximeraexam_end_int
+      {\int_min:nn
+        {\l_ximeraexam_start_int + \l_ximeraexam_limit_int - 1}
+        {\seq_count:N \g_ximeraexam_previous_questions_seq}}
+    \int_set:Nn \l_ximeraexam_columns_int
+      {\l_ximeraexam_end_int - \l_ximeraexam_start_int + 2}
+    \bool_set_false:N \l_tmpa_bool
+    \str_if_eq:nnT {#1}{points}
+      {\int_compare:nNnT {\l_ximeraexam_end_int} =
+         {\seq_count:N \g_ximeraexam_previous_questions_seq}
+         {\bool_set_true:N \l_tmpa_bool
+          \int_incr:N \l_ximeraexam_columns_int
+          % Reserve one more column for the bonus total, if present.
+          \fp_compare:nNnT {\l_ximeraexam_bonus_fp} > {0}
+            {\int_incr:N \l_ximeraexam_columns_int}}}
+    \dim_set:Nn \l_ximeraexam_cell_dim
+      {(\linewidth - 2\tabcolsep * \l_ximeraexam_columns_int
+        - \arrayrulewidth * (\l_ximeraexam_columns_int + 1))
+        / \l_ximeraexam_columns_int}
+    \tl_set:Nx \l_tmpb_tl
+      {|*{\int_use:N \l_ximeraexam_columns_int}
+        {>{\exp_not:n {\centering\arraybackslash}}p{\dim_use:N \l_ximeraexam_cell_dim}|}}
+    \tl_set:Nn \l_ximeraexam_rows_tl {\hline \textbf{Question}}
+    \tl_set:Nn \l_ximeraexam_values_tl
+      {\textbf{\str_if_eq:nnTF {#1}{points}{Points}{Standards}}}
+    \tl_set:Nn \l_ximeraexam_earned_tl {\textbf{Earned}}
+    \int_step_inline:nnn {\l_ximeraexam_start_int}{\l_ximeraexam_end_int}
+      {
+        \tl_put_right:Nx \l_ximeraexam_rows_tl
+          {& \exp_not:N \ximeraexam_question_heading:n
+             {\seq_item:Nn \g_ximeraexam_previous_questions_seq {##1}}}
+        \tl_set:Nx \l_tmpc_tl
+          {\seq_item:Nn \g_ximeraexam_previous_questions_seq {##1}}
+        \prop_get:NVN \g_ximeraexam_previous_meta_prop \l_tmpc_tl \l_tmpd_tl
+        \tl_put_right:Nx \l_ximeraexam_values_tl
+          {& \exp_not:V \l_tmpd_tl}
+        \tl_put_right:Nn \l_ximeraexam_earned_tl {&}
+      }
+    \bool_if:NT \l_tmpa_bool
+      {
+        \tl_put_right:Nn \l_ximeraexam_rows_tl {& \textbf{Total}}
+        \tl_put_right:Nx \l_ximeraexam_values_tl
+          {& \fp_eval:n {round(\l_ximeraexam_total_fp,4)}}
+        \tl_put_right:Nn \l_ximeraexam_earned_tl {&}
+        % Keep bonus points separate from the ordinary total in the final block.
+        \fp_compare:nNnT {\l_ximeraexam_bonus_fp} > {0}
+          {
+            \tl_put_right:Nn \l_ximeraexam_rows_tl {& \textbf{Bonus}}
+            \tl_put_right:Nx \l_ximeraexam_values_tl
+              {& \fp_eval:n {round(\l_ximeraexam_bonus_fp,4)}}
+            \tl_put_right:Nn \l_ximeraexam_earned_tl {&}
+          }
+      }
+    \tl_put_right:Nn \l_ximeraexam_rows_tl {\tabularnewline \hline}
+    \tl_put_right:NV \l_ximeraexam_rows_tl \l_ximeraexam_values_tl
+    \ximeraexam_row_end:
+    \bool_if:NT \l_ximeraexam_earned_bool
+      {\tl_put_right:NV \l_ximeraexam_rows_tl \l_ximeraexam_earned_tl
+       \ximeraexam_row_end:}
+    \par\noindent
+    \group_begin:
+    \cs_if_exist:NT \tagpdfsetup
+      {\tagpdfsetup{table/header-rows={1},table/header-columns={1}}}
+    \exp_args:NnV \begin {tabular} \l_tmpb_tl
+    \tl_use:N \l_ximeraexam_rows_tl
+    \end{tabular}
+    \group_end:
+    \par\smallskip
+    \int_set:Nn \l_ximeraexam_start_int {\l_ximeraexam_end_int + 1}
+  }
+\cs_new_protected:Npn \ximeraexam_table_horizontal:n #1
+  {
+    \int_set:Nn \l_ximeraexam_start_int {1}
+    \int_while_do:nn
+      {\l_ximeraexam_start_int <= \seq_count:N \g_ximeraexam_previous_questions_seq}
+      {\ximeraexam_table_horizontal_block:n {#1}}
+  }
+
+% A user limit counts question columns, not the label or final Total column.
+% With no explicit limit, choose a conservative count that keeps cells legible.
+\cs_new_protected:Npn \ximeraexam_table:nnnn #1#2#3#4
+  {
+    \tl_set:Nn \l_ximeraexam_orientation_tl {#2}
+    \bool_set_true:N \l_ximeraexam_earned_bool
+    \str_if_eq:nnT {#3} {noearned}
+      {\bool_set_false:N \l_ximeraexam_earned_bool}
+    \int_set:Nn \l_ximeraexam_limit_int
+      {\str_if_eq:nnTF {#1}{points}{4}{3}}
+    \tl_if_blank:nF {#4}
+      {\int_set:Nn \l_ximeraexam_limit_int {#4}}
+    \int_compare:nNnF {\l_ximeraexam_limit_int} > {0}
+      {\PackageError{ximeraExam}{Column~limit~must~be~positive}{}
+       \int_set:Nn \l_ximeraexam_limit_int {1}}
+    \seq_if_empty:NTF \g_ximeraexam_previous_questions_seq
+      {\par\noindent\textit{Question~summary~available~after~the~next~LaTeX~run.}\par}
+      {
+        \str_if_eq:nnT {#1}{points}{\ximeraexam_sum:}
+        \par\smallskip\noindent
+        \str_if_eq:VnTF \l_ximeraexam_orientation_tl {v}
+          {\ximeraexam_table_vertical:n {#1}}
+          {\ximeraexam_table_horizontal:n {#1}}
+        \par\smallskip
+      }
+  }
+\NewDocumentCommand{\gradetable}{O{h} O{earned} O{}}
+  {\tl_if_eq:NnTF \g_ximeraexam_mode_tl {points}
+    {\ximeraexam_table:nnnn {points}{#1}{#2}{#3}}
+    {\PackageError{ximeraExam}{Use~\string\standardstable~in~standards~mode}{}}}
+\NewDocumentCommand{\standardstable}{O{h} O{earned} O{}}
+  {\tl_if_eq:NnTF \g_ximeraexam_mode_tl {standards}
+    {\ximeraexam_table:nnnn {standards}{#1}{#2}{#3}}
+    {\PackageError{ximeraExam}{Use~\string\gradetable~in~points~mode}{}}}
+\ExplSyntaxOff
+
+% Keep page furniture separate from the exam content. The three fields in each
+% header or footer remain ordinary LaTeX, so stored metadata and Lua-generated
+% values can be used without teaching this package any naming conventions.
+\RequirePackage{fancyhdr}
+\RequirePackage{lastpage}
+
+% Repeated page furniture should not be read as new content on every page.
+% Wrap each nonempty field in a PDF artifact; without tagging, print it normally.
+\newcommand{\ximeraExamPageFurniture}[1]{%
+  \if\relax\detokenize{#1}\relax\else
+    \ifcsname tagmcbegin\endcsname
+      \tagmcbegin{artifact}%
+        #1%
+      \tagmcend
+    \else
+      #1%
+    \fi
+  \fi
+}
+
+% Keep the first-page and running layouts independent. The first-page style is
+% available explicitly, while the ordinary exam cover remains intentionally empty.
+\newcommand{\ximeraExamFirstHeadL}{}
+\newcommand{\ximeraExamFirstHeadC}{}
+\newcommand{\ximeraExamFirstHeadR}{}
+\newcommand{\ximeraExamFirstFootL}{}
+\newcommand{\ximeraExamFirstFootC}{}
+\newcommand{\ximeraExamFirstFootR}{}
+\newcommand{\ximeraExamRunHeadL}{\examcoursetext}
+\newcommand{\ximeraExamRunHeadC}{\examtitletext}
+\newcommand{\ximeraExamRunHeadR}{\examversiontext}
+\newcommand{\ximeraExamRunFootL}{\examdatetext}
+\newcommand{\ximeraExamRunFootC}{}
+\newcommand{\ximeraExamRunFootR}{Page~\thepage\ of~\pageref{LastPage}}
+
+% Build each style on demand, allowing users to set the fields in the preamble.
+\fancypagestyle{ximeraExamFirst}{%
+  \fancyhf{}%
+  \fancyhead[L]{\ximeraExamPageFurniture{\ximeraExamFirstHeadL}}%
+  \fancyhead[C]{\ximeraExamPageFurniture{\ximeraExamFirstHeadC}}%
+  \fancyhead[R]{\ximeraExamPageFurniture{\ximeraExamFirstHeadR}}%
+  \fancyfoot[L]{\ximeraExamPageFurniture{\ximeraExamFirstFootL}}%
+  \fancyfoot[C]{\ximeraExamPageFurniture{\ximeraExamFirstFootC}}%
+  \fancyfoot[R]{\ximeraExamPageFurniture{\ximeraExamFirstFootR}}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+}
+\fancypagestyle{ximeraExamRunning}{%
+  \fancyhf{}%
+  \fancyhead[L]{\ximeraExamPageFurniture{\ximeraExamRunHeadL}}%
+  \fancyhead[C]{\ximeraExamPageFurniture{\ximeraExamRunHeadC}}%
+  \fancyhead[R]{\ximeraExamPageFurniture{\ximeraExamRunHeadR}}%
+  \fancyfoot[L]{\ximeraExamPageFurniture{\ximeraExamRunFootL}}%
+  \fancyfoot[C]{\ximeraExamPageFurniture{\ximeraExamRunFootC}}%
+  \fancyfoot[R]{\ximeraExamPageFurniture{\ximeraExamRunFootR}}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+}
+
+\NewDocumentCommand{\firstpageheader}{mmm}{%
+  \renewcommand{\ximeraExamFirstHeadL}{#1}%
+  \renewcommand{\ximeraExamFirstHeadC}{#2}%
+  \renewcommand{\ximeraExamFirstHeadR}{#3}%
+}
+\NewDocumentCommand{\firstpagefooter}{mmm}{%
+  \renewcommand{\ximeraExamFirstFootL}{#1}%
+  \renewcommand{\ximeraExamFirstFootC}{#2}%
+  \renewcommand{\ximeraExamFirstFootR}{#3}%
+}
+\NewDocumentCommand{\runningheader}{mmm}{%
+  \renewcommand{\ximeraExamRunHeadL}{#1}%
+  \renewcommand{\ximeraExamRunHeadC}{#2}%
+  \renewcommand{\ximeraExamRunHeadR}{#3}%
+}
+\NewDocumentCommand{\runningfooter}{mmm}{%
+  \renewcommand{\ximeraExamRunFootL}{#1}%
+  \renewcommand{\ximeraExamRunFootC}{#2}%
+  \renewcommand{\ximeraExamRunFootR}{#3}%
+}
+
+% Select the running layout for question pages without changing the blank cover.
+% The user can apply the first-page layout with \thispagestyle{ximeraExamFirst}.
+\AtBeginDocument{\pagestyle{ximeraExamRunning}}
+
+\endinput

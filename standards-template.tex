@@ -1,0 +1,58 @@
+% Standards-mode starter template for ximeraExam 1.7.1.
+% Keep ximeraExam.sty beside this file and compile with LuaLaTeX twice.
+\DocumentMetadata{lang=en-US,pdfstandard=ua-2,tagging=on}
+\documentclass{ximera}
+\usepackage{unicode-math}
+\usepackage[standards]{ximeraExam}
+
+% Edit these details and replace the example standard codes with your own.
+\examtitle{Standards Assessment}
+\examcourse{Course Name}
+\examdate{Exam Date}
+\examversion{Form A}
+
+% mark standard codes in the question text with \markStandard{<code>}.
+% just the standard code itself will appear in the standard table, but the marked version will appear
+% in the question text.  For example, \markStandard{ALG1} will appear as *ALG1* in the question text.
+\RenewDocumentCommand{\markStandard}{m}{*#1*}
+
+% Keep this for student copies; switch to \printanswers for the answer key.
+\noprintanswers
+
+\begin{document}
+% build the cover page with a standard table instead of a grade table.  The standard table will show the standards
+% that appear on each question.
+\begin{examcover}
+  \examcoverheading{\examtitletext}
+  \noindent\examcoursetext\quad\examversiontext\quad\examdatetext\par
+  \noindent\examnameprompt\ \examnamefield\par\bigskip
+  \noindent\textbf{Instructions:} Show your work and justify your answers.
+  \par\bigskip
+  \centering
+  \standardstable[v][noearned][4]
+\end{examcover}
+
+\begin{questions}
+
+% A question may carry one or more standard codes.
+\question[ALG1] Solve \(2x+3=11\). Show your work.
+\begin{solution}[1.5in]
+  Subtract \(3\), then divide by \(2\): \(x=4\).
+\end{solution}
+
+% An unmarked parent question inherits its parts' standards.
+\question Consider the function \(f(x)=x^2\).
+\begin{parts}
+  \part[\markStandard{ALG2}] Evaluate \(f(3)\).
+  \begin{solution}[0.75in]
+    \(f(3)=9\).
+  \end{solution}
+
+  \part[ALG3] Solve \(f(x)=9\).
+  \begin{solution}[\stretch{1}]
+    \(x=-3\) or \(x=3\).
+  \end{solution}
+\end{parts}
+
+\end{questions}
+\end{document}
