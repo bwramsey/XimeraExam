@@ -827,6 +827,24 @@
   }{}%
 }
 
+% Keep each printed word-choice list together, so its final option cannot
+% be stranded on the next page. Ordinary multiple-choice lists still break
+% normally; Ximera's given-word and interactive HTML behavior stay unchanged.
+\let\ximeraExamOriginalWordChoice\wordChoice
+\RenewDocumentCommand{\wordChoice}{m}{%
+  \ifwordchoicegiven
+    \ximeraExamOriginalWordChoice{#1}%
+  \else
+    \par\noindent
+    \begin{minipage}{\linewidth}%
+      \begin{multipleChoice}%
+        #1%
+      \end{multipleChoice}%
+    \end{minipage}%
+    \par
+  \fi
+}
+
 % Ximera's wordChoice temporarily maps \choice to \inlinechoice. Mirror the
 % ordinary choice behavior here so word choices use the same student/key rules.
 % Ximera tightens the web rendering with negative space around the choices; for
