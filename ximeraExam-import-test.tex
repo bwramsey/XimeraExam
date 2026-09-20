@@ -1,0 +1,72 @@
+% ximeraExam: import the unmodified Q1SP17REDUX.tex activity.
+% Keep this file, Q1SP17REDUX.tex, and ximeraExam.sty in the same directory.
+% Run LuaLaTeX twice for each mode/output combination.
+\DocumentMetadata{lang=en-US,pdfstandard=ua-2,tagging=on}
+\documentclass{ximera}
+\usepackage{unicode-math}
+\input{preamble.tex}
+
+% Choose points or standards mode before loading ximeraExam.
+\newif\ifstandardsmode
+%\standardsmodetrue
+\ifstandardsmode
+  \usepackage[standards]{ximeraExam}
+\else
+  \usepackage[points]{ximeraExam}
+\fi
+
+% Choose student or key output; do not enable both switches.
+%\noprintanswers
+\printanswers % Comment out when using \printanswers above.
+
+
+% The imported activity uses TikZ/pgfplots; its own preamble is skipped.
+% Load its graphing dependencies in the PARENT exam preamble.
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{backgrounds}
+
+
+
+\examtitle{ximeraExam Activity Import}
+\examcourse{Test Course}
+\examdate{September 2026}
+\examversion{Import Test}
+
+\begin{document}
+\begin{examcover}
+  \examcoverheading{\examtitletext}
+  \noindent Name: \rule{3in}{0.4pt}\par
+  \bigskip
+  \ifstandardsmode
+    \standardstable[h][noearned][2]
+  \else
+    \gradetable[h][noearned][2]
+  \fi
+\end{examcover}
+
+\begin{questions}
+  % Check that numbering and metadata work before an imported activity.
+  \ifstandardsmode
+    \question[ALG0] Ordinary question before the import: \(1+1=\answer{2}\).
+  \else
+    \question[1] Ordinary question before the import: \(1+1=\answer{2}\).
+  \fi
+
+  % Import the actual activity without editing its source. Its outer exercise
+  % should be ONE numbered exam question, even though it contains two nested
+  % exercises, four graphical choices, and further answer/word-choice fields.
+  \ifstandardsmode
+    \ximeraQuestion[GRAPHS,LIMITS]{Q1SP17REDUX.tex}
+  \else
+    \ximeraQuestion[8]{Q1SP17REDUX.tex}
+  \fi
+
+  % Check that imported environment changes do not leak into the next question.
+  \ifstandardsmode
+    \question[ALG9] Ordinary question after the import: \(3+2=\answer{5}\).
+  \else
+    \question[2] Ordinary question after the import: \(3+2=\answer{5}\).
+  \fi
+\end{questions}
+\end{document}
