@@ -1,5 +1,9 @@
 ## Core latex/pdflatex auxiliary files:
 *.aux
+*.ids
+*.log
+*.oc
+*.html
 *.lof
 *.log
 *.lot
@@ -21,3 +25,4 @@
 *.synctex.gz
 *.synctex.gz(busy)
 .pdfsync
+
