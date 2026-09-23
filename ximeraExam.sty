@@ -340,15 +340,26 @@
 }
 
 
-% Measure each question label before starting the item.
-% This keeps the label at the left margin while giving the question text enough
-% room for either short point values or longer standards lists.
+% Measure the visible label without creating PDF tags inside the measuring box.
+% Tag only the printed question label, leaving the question body in its normal
+% paragraph/list structure. This applies to normal and bonus questions alike.
 \newlength{\ximeraExamQuestionLabelWidth}
+\newcommand{\ximeraExamTaggedQuestionLabel}[1]{%
+  \ifcsname tagstructbegin\endcsname
+    \tagstructbegin{tag=H2}%
+    \tagmcbegin{tag=H2}%
+      #1%
+    \tagmcend
+    \tagstructend
+  \else
+    #1%
+  \fi
+}
 \NewDocumentCommand{\ximeraExamQuestionItem}{m}{%
   \settowidth{\ximeraExamQuestionLabelWidth}{#1}%
   \setlength{\labelwidth}{\ximeraExamQuestionLabelWidth}%
   \setlength{\itemindent}{\dimexpr\labelwidth+\labelsep\relax}%
-  \item[#1]%
+  \item[\ximeraExamTaggedQuestionLabel{#1}]%
 }
 
 \newcommand{\ximeraExamPartListSetup}{%
