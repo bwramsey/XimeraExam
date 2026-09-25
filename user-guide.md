@@ -42,7 +42,7 @@ The first question **inherits 5 points** from its parts; the second question has
 
 ## 2. Questions and nested parts
 
-`questions` establishes the question list. Inside it use `\question[metadata]` or `\bonusquestion[metadata]`; the metadata argument is optional. These start items, **not environments**: write the item body after the command and start the next item when ready.
+`questions` establishes the top-level question sequence. Inside it use `\question[metadata]` or `\bonusquestion[metadata]`; the metadata argument is optional. These start items, **not environments**: write the item body after the command and start the next item when ready. In tagged PDF output, each visible **Question N** / **Bonus Question N** label is emitted as an H2 heading; nested `parts`, `subparts`, and `subsubparts` remain list structures.
 
 ```latex
 \begin{questions}
@@ -179,6 +179,44 @@ Redefine these commands to adjust the printed appearance:
 | `\ximeraExamSolutionBox{body}` | Format a printed solution box. |
 
 `\choice`, `\choiceEXP`, and inline word-choice variants follow the answer mode in PDF output. In answer keys, solutions appear in **breakable bordered boxes**: a long solution can continue onto another page, each segment has a border, and the **Solution:** label appears only at the start. The optional `solution` spacing argument reserves space only in student mode (see §5). Answer-mode overrides are for the **print/PDF build**; Ximera's native interactive HTML answer and choice commands are left alone.
+
+### Printed multiple-choice layout
+
+Ordinary `multipleChoice` questions print without a visible “Multiple Choice” heading and use capital-letter labels `(A)`, `(B)`, `(C)`, … so they do not clash with lowercase part labels. The default layout is vertical:
+
+```latex
+\begin{multipleChoice}
+  \choice{First option}
+  \choice[correct]{Second option}
+  \choice{Third option}
+\end{multipleChoice}
+```
+
+For choices that should run across the page, use `layout=horizontal`:
+
+```latex
+\begin{multipleChoice}[layout=horizontal]
+  \choice{First option}
+  \choice{Second option}
+  \choice{Third option}
+\end{multipleChoice}
+```
+
+A horizontal row is spread across the available line width with equal stretchable space before the first choice, between choices, and after the last choice. To limit how many choices appear on one row, add `max-per-row=<n>`:
+
+```latex
+\begin{multipleChoice}[layout=horizontal,max-per-row=3]
+  \choice{One}
+  \choice{Two}
+  \choice{Three}
+  \choice{Four}
+  \choice{Five}
+  \choice{Six}
+\end{multipleChoice}
+```
+
+With `max-per-row=3`, the example prints as two independently spaced rows of three. Omitting `max-per-row` keeps all horizontal choices on one row when they fit. Correct choices remain unmarked in student mode and receive the configured `\correctchoicemark` in answer keys.
+
 
 ## 5. Answer lines and handwritten response space
 
@@ -355,10 +393,11 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 | --- | --- |
 | `\usepackage[points]{ximeraExam}` / `[standards]` | Select assessment mode. |
 | `\ximeraExamMode` | Expand to the current assessment mode name (`points` or `standards`). |
-| `questions`; `\question[metadata]`; `\bonusquestion[metadata]` | Define the main question list, ordinary questions, and bonus questions. |
+| `questions`; `\question[metadata]`; `\bonusquestion[metadata]` | Define the main question sequence, ordinary questions, and bonus questions; visible top-level question labels are H2 headings in tagged PDF output. |
 | `parts` / `\part[metadata]`; `subparts` / `\subpart[metadata]`; `subsubparts` / `\subsubpart[metadata]` | Nest assessment items. |
 | `\ximeraQuestion[metadata]{file.tex}` | Import a complete Ximera activity as one exam question. |
 | `\printanswers`; `\noprintanswers` | Choose key or student rendering, globally or within a TeX group. |
+| `multipleChoice[layout=vertical or horizontal,max-per-row=n]`; `\choice[correct]{...}` | Print capital-letter multiple-choice options; horizontal mode can limit and evenly spread choices by row. |
 | `\answerline[width=...,align=...]{label}` | Print an inline line with an empty label, or a standalone line with a nonempty label. |
 | `\answerlineWidth{length}`; `\answerlineAlign{left or right}`; `\answerlineInKey{hide or show}` | Set line length, standalone alignment, and standalone visibility in keys. |
 | `solution` / `\begin{solution}[space]` | Hide solutions and reserve optional fixed/stretchable response space for students; print a breakable boxed solution in keys. |
@@ -376,7 +415,7 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 
 ## 12. Accessibility and current limitations
 
-Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
+Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. The package's built-in heading structure uses the exam cover title as H1 and each visible top-level **Question N** / **Bonus Question N** label as H2; nested parts remain list items. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
 
 Known limits: summary data require another compile; the imported activity's own preamble is skipped; the package does not generate model answers you have not authored; formatting of large diagrams, response spaces, and custom covers remains the exam author's responsibility. Although this package creates an accessible tagged structure for its supported exam features, it cannot guarantee that arbitrary custom LaTeX or TikZ in an imported problem is accessible without author review.
 
