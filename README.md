@@ -80,9 +80,8 @@ To produce an answer key, replace `\noprintanswers` with `\printanswers` and com
 
 - `example/points-template.tex` — starting point for a points-based exam.
 - `example/standards-template.tex` — starting point for a standards-based exam, including an example of marking an individual standard.
-- `example/calculus-worked-example.tex` — full-featured Calculus I example showing a custom cover, inherited points, nested parts, multiple-choice layout, response space, page furniture, tagged question headings, and a TikZ/pgfplots graph with alt text.
+- `example/calculus_feature_example.tex` — full-featured Calculus I example showing a custom cover, inherited points, nested parts, multiple-choice layout, response space, page furniture, tagged question headings, and a TikZ/pgfplots graph with alt text.
 - `user-guide.md` — detailed instructions, customization settings, and command reference.
-- `CHANGELOG.md` — changes included in this release.
 - `regression.tex` and `import-regression.tex` — regression test sources; the import test uses the included `Q1SP17REDUX.tex` activity.
 
 Start with the template in `example/` matching your assessment mode. Use `example/calculus-worked-example.tex` when you want to see several package features working together. Consult **`user-guide.md`** for the full explanation of question structure, multiple-choice layout, answer lines, answer-key behavior, activity imports, accessibility structure, and page layout.
