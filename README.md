@@ -84,7 +84,7 @@ To produce an answer key, replace `\noprintanswers` with `\printanswers` and com
 - `user-guide.md` — detailed instructions, customization settings, and command reference.
 - `regression.tex` and `import-regression.tex` — regression test sources; the import test uses the included `Q1SP17REDUX.tex` activity.
 
-Start with the template in `example/` matching your assessment mode. Use `example/calculus-worked-example.tex` when you want to see several package features working together. Consult **`user-guide.md`** for the full explanation of question structure, multiple-choice layout, answer lines, answer-key behavior, activity imports, accessibility structure, and page layout.
+Start with the template in `example/` matching your assessment mode. Use `example/calculus_feature_example.tex` when you want to see several package features working together. Consult **`user-guide.md`** for the full explanation of question structure, multiple-choice layout, answer lines, answer-key behavior, activity imports, accessibility structure, and page layout.
 
 ## PDF accessibility
 
