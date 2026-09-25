@@ -1,6 +1,6 @@
 # ximeraExam
 
-**Version 1.7.1 — Printable exams built from Ximera**
+**Printable exams built from Ximera**
 
 `ximeraExam.sty` is a LaTeX package for creating printable exams with the Ximera document class. It supports points-based and standards-based assessments, reusable Ximera activities, student and answer-key versions, and customizable exam layouts.
 
