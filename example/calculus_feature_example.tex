@@ -1,0 +1,420 @@
+\DocumentMetadata{lang=en-US,pdfstandard=ua-2,tagging=on}
+\documentclass{ximera}
+\usepackage{unicode-math}
+\usepackage[points]{ximeraExam}
+
+
+%%%%%%%%%%%%
+%%
+%% This is an example demonstrating features of the package, not a minimal starter template.
+%%
+%% Demonstrates:
+%%   - PDF/UA-2 document setup
+%%   - custom exam cover and grade table
+%%   - inherited question points
+%%   - nested parts
+%%   - horizontal multiple choice
+%%   - answer lines and student response space
+%%   - running headers/footers
+%%   - TikZ/pgfplots content
+%%
+%%%%%%%%%%%%
+
+
+
+% preliminary setup for ximeraExam
+\noprintanswers
+\renewcommand{\pointsLabel}[1]{(#1 points)}
+\answerlineAlign{right}
+
+
+% Update the course, date, and assignment time limit here
+\newcommand*{\courseName}{Calculus 1} 
+\newcommand*{\monthAndDate}{February 17}
+\newcommand*{\timeLimit}{45 Minutes}
+
+
+
+
+\newcommand*{\courseSemester}{Spring 2026}
+\newcommand*{\examName}{Midterm 2}
+\newcommand*{\formDesignation}{Form B}
+\newcommand*{\dueDate}{\monthAndDate , 2026 }
+
+%set the title
+\title{\courseName \,\examName \, \courseSemester}
+
+
+% data used by ximeraExam to set pdf title
+% also used if sticking with default examcover
+\examtitle{\examName}
+\examcourse{\courseName - \courseSemester}
+\examdate{\dueDate}
+\examversion{\formDesignation}
+
+
+% question/part labels and set headers
+\renewcommand{\questionlabel}{\textbf{\questionnumber)}}
+\renewcommand{\partlabel}{\partnumber)}
+\firstpageheader{}{}{}
+\runningheader{\examName}{\courseName \, \, \courseSemester}{\formDesignation}
+\runningfooter{}{}{}
+
+
+
+
+
+% additional packages
+\usepackage{pgfplots}   % <- for graphics
+\pgfplotsset{compat=newest}
+\AddToHook{enddocument/afterlastpage}{\label{LastPage}}
+\usetikzlibrary{shapes.geometric, calc}
+\usepackage[left=0.5in, right=0.5in, bottom=0.5in, top=0.7in, headsep=1.5em]{geometry}
+
+% some notation for questions
+\newcommand{\ddx}{\frac{d}{d x}} 
+  
+% For points in graphs
+\newcommand{\opencircle}[1]{	
+ 						\draw[fill=blue] #1 circle [color=blue,radius=3pt];
+						\draw[fill=white] #1 circle [color=white,radius=2pt]; }
+						
+\newcommand{\closedcircle}[1]{	
+ 						\draw[fill=blue] #1 circle [color=blue,radius=3pt];
+						}
+ 
+\newcommand{\noWork}{(You do not need to show work for this question.)}
+
+
+
+
+
+\begin{document}
+  % Set sans serif fonts for readability.
+	\sffamily
+
+
+\begin{examcover} %using a custom examcover page
+
+	% Modify styling of cover page.
+	\thispagestyle{empty}
+	\newgeometry{margin=0.5in}
+	 
+	
+	% Start of Cover Page
+	
+	\examcoverheading{\textbf{\courseName \, \examName}}
+	
+	% name info as text instead of a tabular, so it's not mistaken as a data table.
+	\begin{flushleft}
+	\noindent
+	\makebox[0.30\linewidth][l]{\textbf{\formDesignation}}%
+	\hfill Printed First and Last Name: \rule{2.5in}{.7pt}\par
+	\medskip
+	
+	\noindent
+	\makebox[0.30\linewidth][l]{\dueDate}%
+	\hfill OSU name.\#: \rule{2.5in}{.7pt}\par
+	\medskip
+	
+	\noindent
+	\makebox[0.30\linewidth][l]{Duration: \timeLimit}%
+	\hfill Lecturer: \rule{2.5in}{.7pt}\par
+	\medskip
+	
+	\noindent
+	\makebox[0.30\linewidth][l]{Page 1 of \pageref{LastPage}}%
+	\hfill Recitation Instructor: \rule{2.5in}{.7pt}\par
+	\medskip
+	
+	\noindent
+	\hfill Recitation Time: \rule{2.5in}{.7pt}\par
+	\end{flushleft}
+	
+	
+	\vspace*{\stretch{1}}
+	 
+	\noindent \textbf{Instructions:} 
+	\begin{itemize}
+		\item These questions are here for you to demonstrate your understanding of the course material.\\
+	 		To do that, \textbf{show all relevant supporting work} to receive full credit on all Problems unless explicitly stated not to.
+	 		
+		\item Incorrect answers with substantially correct work may receive partial credit.  \\
+			\textbf{Answers without justification will receive no credit.}\\
+			Using a table of values or L'H\^{o}pitals Rule are \textbf{not justification} for computing limits.
+		
+		\item Give \textbf{exact answers} unless instructed to do otherwise.\\
+			Intervals should be expressed \textbf{simplified in interval notation}.\\
+			If a requested value does not exist, write ``DNE".
+			Write that limits ``DNE" only if they do not exist and are neither $\infty$ nor $-\infty$.
+	
+		\item You are expected to \textbf{evaluate any famous functions at standard values}.
+		
+		\item This is a closed book/closed note exam. \\
+			Scrap paper is not allowed. All your work should be on this exam paper.\\
+			Calculators, tablets, headphones, and other devices are not permitted.
+		
+	
+	
+
+	\end{itemize}
+		
+	\vspace*{\stretch{1}}
+	
+	% Box for students to sign acknowledging the instructions.
+	\begin{tcolorbox}[colback=white]
+		\textbf{SIGN YOUR NAME:}  \mbox{\begin{minipage}{50ex}\hfill\vspace{3em}\end{minipage}}\\
+	\end{tcolorbox}
+	
+	\vspace*{\stretch{1}}
+	
+	\begin{center}
+		% setup the gradetable. Horizontal, and not showing the ``Earned'' row, since not used here for hand scoring.
+		\gradetable[h][noearned]
+	\end{center}
+	
+	\vspace*{\stretch{1}} 
+	
+
+\end{examcover}
+
+%\newpage
+\begin{questions}
+	
+
+\newcommand{\ptXMin}{-4}
+\newcommand{\ptXMax}{5}
+\newcommand{\ptYMin}{-3}
+\newcommand{\ptYMax}{4}
+\newcommand{\DomF}{(\ptXMin, \ptXMax)}
+\newcommand{\secA}{-3}
+\newcommand{\secB}{-1}
+
+\newcommand{\CompPtA}{\ensuremath{-3.8}}
+\newcommand{\CompPtB}{\ensuremath{-1.7}}
+\newcommand{\CompPtC}{\ensuremath{4.3}}
+%Question 1
+\question 
+The entire graph of a function $f$, with domain $\DomF$, is given below.
+
+
+
+%% Tikz graph with alt-text.
+%% Give the complete TikZ graphic meaningful alt text for tagged PDF output.
+%% Describe the mathematically relevant content rather than only saying
+%% "graph of f."
+
+\begin{center}
+	\begin{tikzpicture}[
+    alt={
+    Graph of a function f on the domain (-4,5), with several
+    connected curve segments and open or closed endpoints.
+  }
+]
+		\begin{axis}[
+			xmin=\ptXMin.3, xmax=\ptXMax.3, ymin=\ptYMin.2,ymax=\ptYMax.2,    
+			axis lines =middle, 
+			every axis y label/.style={at=(current axis.above origin),anchor=south},
+			every axis x label/.style={at=(current axis.right of origin),anchor=west},
+			xtick={\ptXMin,...,\ptXMax}, ytick={\ptYMin,...,\ptYMax},
+			grid=major, width= 0.8*\pagewidth, height = 3.5in,
+			grid style={dashed, gray!40}
+			]
+			
+			\addplot[color=blue, ultra thick, smooth, domain=-4:-2]{2*(x+4)-1};
+			\addplot[color=blue, ultra thick, smooth, domain=-2:0]{(x^2-1)};
+			\addplot[color=blue, ultra thick, smooth, samples=200, domain=0:1]{-(1-x^2)^(0.5)};
+			\addplot[color=blue, ultra thick, smooth, samples=500, domain=1:5]{(x-1)^(0.5) };
+
+			\opencircle{(-4,-1)};
+			\closedcircle{(-1,-2)};
+			\opencircle{(-1, 0)};
+			\opencircle{(5,2)};				
+		\end{axis}
+	\end{tikzpicture}
+\end{center}
+
+\begin{parts}
+	\part[3] At which point(s) in $\DomF$ is $f$ \textbf{nondifferentiable}? \noWork
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	\answerline[width=2in]{At $x=$}
+	
+	\part[3] \textbf{Sketch} the line \textbf{secant} to the graph of $f$ at the points corresponding to $x=\secA$ and $x=\secB$ on the axes above.  \textbf{Label it as $S$.}	\noWork	
+
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	
+		
+	\part[2] Which one of these values is \textbf{least}? \noWork 
+
+	\vspace{0.25in}
+	
+	\begin{multipleChoice}[layout=horizontal, max-per-row=3]
+	    \choice{ \(f'(\CompPtA)\) }
+	    \choice{ \(f'(\CompPtB)\) }
+	    \choice{ \(f'(\CompPtC)\) }
+	\end{multipleChoice}
+
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+
+	\answerline[width=1in]{Answer (A, B, or C):}
+	
+	
+	\part[2] Which one of these values is \textbf{greatest}?\noWork
+	
+	\vspace{0.25in}
+	
+	\begin{multipleChoice}[layout=horizontal]
+	    \choice{ \(f'(\CompPtA)\) }
+	    \choice{ \(f'(\CompPtB)\) }
+	    \choice{ \(f'(\CompPtC)\) }
+	\end{multipleChoice}
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	
+	\answerline[width=1in]{Answer (A, B, or C):}
+	
+\end{parts}
+
+\newpage
+
+\newcommand*{\DoDa}{6}
+\newcommand*{\fnPos}{\ensuremath{2\sqrt{3+t}}}
+\question Suppose an object is traveling along a line with position function given by $s(t) = \fnPos$ meters, for $t \geq 0$ in hours.
+
+\vspace{1em}
+
+\begin{parts}
+	\part[2] Evaluate $s(\DoDa)$.
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	\answerline[width=2in]{Value:}
+
+	
+	\part[3] For this function, calculate $s(\DoDa+h)$.
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	\answerline[width=2in]{Result:}
+
+	
+	\part[7]\label{PART:limit} Find the form and calculate the limit: $\displaystyle \lim_{h \to 0} \dfrac{s(\DoDa+h)-s(\DoDa)}{h}$.			
+	
+	\begin{solution}[\stretch{5}]
+	\end{solution}	
+	\answerline[width=2in]{Form:}
+	
+	\vspace{0.25in}
+
+	\answerline[width=2in]{Value:}
+
+
+	\part[4] Explain what the value you calculated in \ref{PART:limit}) represents about the object's motion. Be specific.
+	\begin{solution}[\stretch{2}]
+	\end{solution}	 
+	
+	
+	
+	
+\end{parts}
+
+				
+
+
+\newpage
+
+
+\newcommand{\tlFn}{g}
+\newcommand*{\fnOrig}{\ensuremath{\dfrac{3x+2}{4x+1}}}
+\newcommand*{\fnDeriv}{\ensuremath{ -\dfrac{5}{(4x+1)^2}}}
+
+\newcommand{\pointA}{2}
+\newcommand{\pointB}{\dfrac{8}{9}}
+\newcommand{\toPt}{1}
+\newcommand{\innerFn}{3x^3-1} % needs to have value \pointA when x is \toPt
+
+\question Let $\tlFn$ be the function given by $\tlFn(x) = \fnOrig$.
+
+\vspace*{0.15in}
+\begin{parts}
+	
+	\part[5] Show that the derivative of $\tlFn$ is given by $\fnDeriv$
+
+	(HINT: Use Derivative shortcut formulas.)
+	
+	\begin{solution}[\stretch{2}]
+	\end{solution}		
+	
+	\part[4] Find an equation for the line \textbf{tangent} to the graph of $y=\tlFn(x)$ at the point $\left( \pointA, \pointB \right)$. 
+
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	
+		\answerline[width=4.5in]{Equation:}
+
+
+	
+	\part[6] Evaluate the limit: $\displaystyle \lim_{x \to \toPt} \dfrac{\tlFn(\innerFn)-\pointB}{x-\toPt}$ . \textbf{EXPLAIN}.
+
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	\answerline[width=4.5in]{Value:}
+	
+	
+\end{parts}		
+
+
+\newpage
+\newcommand{\tabFn}{\ensuremath{k}}
+\newcommand{\tabX}{\ensuremath{3}}
+\newcommand{\tabY}{\ensuremath{4}}
+
+
+\question A function $\tabFn$, with domain $(-\infty, \infty)$, has values and derivative values given in the table below.
+\[ \begin{array}{|c|c|c|c|c|c|c|c|c|c|}
+	\hline
+	\mathbf{x}    & -1&  0 & 1 & 2 & 3 & 4 & 5 & 6 & 7   \\ \hline
+	\mathbf{\tabFn(x)} & 5 & 8 & -3  & 0  &4& 6 & 7 & -\sqrt{3} & -2 \\ \hline
+	\mathbf{\tabFn'(x)}& 2 & -4 & 1 & \frac{2}{3}  &-5 & \frac{1}{4} & -2 &  -6 & 1 \\ \hline
+\end{array} \]
+
+\begin{parts}
+	\part[4] Using the provided information, we can conclude that $\displaystyle \lim_{x\to \tabX} \tabFn(x) = \tabY$. \textbf{EXPLAIN} how we know this is true.
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+		
+		
+	\part[7] Calculate $\displaystyle \left[ \ddx\left( \tabFn(x)  e^{3x} - 6x \right) \right]_{x=5}$
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+	
+	\answerline[width=2.5in]{Value:}
+
+	
+	
+	\part[8] Calculate $\displaystyle \left[ \ddx \left( (x^2+1)^{12} + \tabFn\left( 2\sin(x) + 5 \right)  \right)  \right]_{x=0}$
+	
+	\begin{solution}[\stretch{1}]
+	\end{solution}	
+
+	\answerline[width=2.5in]{Value:}
+
+
+	
+	%	
+\end{parts}	
+
+
+
+
+\end{questions}
+
+\end{document}
