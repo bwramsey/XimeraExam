@@ -67,7 +67,6 @@
 % additional packages
 \usepackage{pgfplots}   % <- for graphics
 \pgfplotsset{compat=newest}
-\AddToHook{enddocument/afterlastpage}{\label{LastPage}}
 \usetikzlibrary{shapes.geometric, calc}
 \usepackage[left=0.5in, right=0.5in, bottom=0.5in, top=0.7in, headsep=1.5em]{geometry}
 
@@ -134,7 +133,7 @@
 	
 	\vspace*{\stretch{1}}
 	 
-	\noindent \textbf{Instructions:} 
+	\examsectionheading{Instructions:} 
 	\begin{itemize}
 		\item These questions are here for you to demonstrate your understanding of the course material.\\
 	 		To do that, \textbf{show all relevant supporting work} to receive full credit on all Problems unless explicitly stated not to.
@@ -170,6 +169,8 @@
 	
 	\begin{center}
 		% setup the gradetable. Horizontal, and not showing the ``Earned'' row, since not used here for hand scoring.
+		% \arraystretch adds vertical room in the rows; it is local to this center block.
+		\renewcommand{\arraystretch}{1.6}
 		\gradetable[h][noearned]
 	\end{center}
 	
