@@ -1,7 +1,7 @@
-# ximeraExam 1.7.1 — User Guide
+# ximeraExam 1.8.0 — User Guide
 
 **Writing printable Ximera exams with points or standards**  
-**Status:** Released version 1.7.1 (September 20, 2026).
+**Status:** Version 1.8.0 (October 13, 2026).
 
 `ximeraExam.sty` is a package used *with* `ximera.cls`, not a separate document class. It supplies exam questions and nested parts, imports existing Ximera activities, student/answer-key rendering, points or standards summaries, cover information, and customizable page furniture. It is intended for LuaLaTeX output; the PDF/UA-2 setup below requires a sufficiently recent LaTeX installation (tested by the project with TeX Live 2026).
 
@@ -42,7 +42,7 @@ The first question **inherits 5 points** from its parts; the second question has
 
 ## 2. Questions and nested parts
 
-`questions` establishes the top-level question sequence. Inside it use `\question[metadata]` or `\bonusquestion[metadata]`; the metadata argument is optional. These start items, **not environments**: write the item body after the command and start the next item when ready. In tagged PDF output, each visible **Question N** / **Bonus Question N** label is emitted as an H2 heading; nested `parts`, `subparts`, and `subsubparts` remain list structures.
+`questions` establishes the top-level question sequence. Inside it use `\question[metadata]` or `\bonusquestion[metadata]`; the metadata argument is optional. These start items, **not environments**: write the item body after the command and start the next item when ready. In tagged PDF output, the `questions` environment opens with an H2 section heading (default text: **Questions**) and the questions themselves are tagged as a list (`L`/`LI`). Nested `parts`, `subparts`, and `subsubparts` are nested list structures.
 
 ```latex
 \begin{questions}
@@ -86,6 +86,31 @@ Change these commands in the preamble with `\renewcommand`:
 ```
 
 These commands change *printed appearance*, not question IDs or grading metadata.
+
+### Customize the Questions section heading
+
+By default, every `questions` environment begins with a visible **Questions** heading. It is tagged as H2 in the PDF structure. Change its text with:
+
+```latex
+\renewcommand{\questionsheading}{Problems}
+```
+
+To suppress the heading entirely:
+
+```latex
+\renewcommand{\questionsheading}{}
+```
+
+For other H2-level sections of an exam, use `\examsectionheading{...}`. Its visual formatting can be customized separately with `\examsectionheadingformat{...}`:
+
+```latex
+\examsectionheading{Instructions}
+
+\renewcommand{\examsectionheadingformat}[1]{%
+  \par\noindent{\large\bfseries #1\par}%
+}
+```
+
 
 ## 3. Points versus standards
 
@@ -217,6 +242,17 @@ A horizontal row is spread across the available line width with equal stretchabl
 
 With `max-per-row=3`, the example prints as two independently spaced rows of three. Omitting `max-per-row` keeps all horizontal choices on one row when they fit. Correct choices remain unmarked in student mode and receive the configured `\correctchoicemark` in answer keys.
 
+### Printed text versus spoken text
+
+Use `\spoken{printed}{spoken}` when the visible wording should remain compact but a screen reader should receive different text. The first argument is printed; the second is supplied as PDF `ActualText`:
+
+```latex
+\spoken{Interval(s)}{intervals}
+```
+
+In an untagged build, only the printed form is used. This command is intended for localized accessibility adjustments; it does not replace meaningful mathematical descriptions or alternative text for graphics.
+
+
 
 ## 5. Answer lines and handwritten response space
 
@@ -247,9 +283,10 @@ Set the defaults in the preamble, after loading `ximeraExam`:
 % \answerlineAlign{right}  % Or align standalone labeled lines to the right.
 \answerlineInKey{hide}     % Hide standalone lines in keys (default).
 % \answerlineInKey{show}   % Or keep standalone lines in keys.
+\answerlineSpokenText{blank space} % Screen-reader text for the writing rule (default).
 ```
 
-`\answerlineWidth` controls the default length of **both** kinds of line. `\answerlineAlign` changes **standalone lines only**; it does not move inline lines. `\answerlineInKey` also controls **standalone lines only**; inline lines always appear in the key. Use the following optional settings to override the width for one line or the alignment for one standalone line:
+`\answerlineWidth` controls the default length of **both** kinds of line. `\answerlineAlign` changes **standalone lines only**; it does not move inline lines. `\answerlineInKey` also controls **standalone lines only**; inline lines always appear in the key. In tagged output, the writing rule itself carries `ActualText`; the default spoken text is **blank space** and can be changed globally with `\answerlineSpokenText{...}`. Use the following optional settings to override the width for one line or the alignment for one standalone line:
 
 ```latex
 \answerline[width=1in]{}
@@ -319,7 +356,7 @@ For a custom cover, use `examcover`:
 \end{examcover}
 ```
 
-`examcover` leaves the first page's header/footer empty by default and starts a new page on exit. A custom cover does **not automatically print the title**, so include `\examcoverheading{...}` when you want a tagged H1. You can redefine the default-cover hooks `\examnameprompt`, `\examnamefield`, `\examcoverbeforetitle`, `\examcoveraftertitle`, and `\examcoverheadingformat{...}` without replacing the cover-building commands.
+`examcover` leaves the first page's header/footer empty by default and starts a new page on exit. A custom cover does **not automatically print the title**, so include `\examcoverheading{...}` when you want a tagged H1. You can redefine the default-cover hooks `\examnameprompt`, `\examnamefield`, `\examcoverbeforetitle`, `\examcoveraftertitle`, and `\examcoverheadingformat{...}` without replacing the cover-building commands. For second-level sections such as **Instructions**, use `\examsectionheading{...}`; it creates a tagged H2 without borrowing Ximera's normal sectioning commands.
 
 ## 8. Grade and standards tables
 
@@ -335,7 +372,7 @@ Use `\gradetable` in points mode and `\standardstable` in standards mode. They r
 \standardstable[h][noearned][4]
 ```
 
-The **first** optional argument chooses `h` (horizontal, default) or `v` (vertical). The **second** is `noearned` to omit the earned row/column (default: include it). The **third** is a positive integer maximum number of *question columns per horizontal block*; its defaults are 4 for points and 3 for standards. The third argument has no useful effect on a vertical table. A horizontal table can wrap across multiple blocks. The horizontal points table includes a regular **Total** column and, when bonus points exist, a separate **Bonus** column immediately to its right in the final block. The vertical points table shows the bonus total in a separate row. The regular total excludes bonus points; the standards table lists codes without a numerical total. Do not mix `\gradetable` with standards mode or `\standardstable` with points mode.
+The **first** optional argument chooses `h` (horizontal, default) or `v` (vertical). The **second** is `noearned` to omit the earned row/column (default: include it). The **third** is a positive integer maximum number of *question columns per horizontal block*; its defaults are 4 for points and 3 for standards. The third argument has no useful effect on a vertical table. A horizontal table can wrap across multiple blocks. Question headings in the summary tables are printed as **Q1**, **Q2**, and so on; the upper-left corner is intentionally blank. The horizontal points table includes a regular **Total** column and, when bonus points exist, a separate **Bonus** column immediately to its right in the final block. The vertical points table shows the bonus total in a separate row. The regular total excludes bonus points; the standards table lists codes without a numerical total. Header cells are tagged with explicit row/column scope information for screen-reader table navigation. Do not mix `\gradetable` with standards mode or `\standardstable` with points mode.
 
 ## 9. Headers, footers, and page styles
 
@@ -345,10 +382,10 @@ The page-furniture commands take **three mandatory arguments**, in **left, cente
 \firstpageheader{Left}{Center}{Right}
 \firstpagefooter{Left}{Center}{Right}
 \runningheader{\examcoursetext}{\examtitletext}{\examversiontext}
-\runningfooter{\examdatetext}{}{Page~\thepage\ of~\pageref{LastPage}}
+\runningfooter{\examdatetext}{}{Page~\thepage\ of~\pageref*{LastPage}}
 ```
 
-The `ximeraExamRunning` style is selected automatically at the beginning of the document. The default running header is course / title / version, and the default running footer is date / blank / `Page X of Y`. The first-page style, `ximeraExamFirst`, starts empty and is selected **explicitly** with `\thispagestyle{ximeraExamFirst}` when desired; it is not automatically applied to the exam cover. The `examcover` environment uses an empty page style.
+The `ximeraExamRunning` style is selected automatically at the beginning of the document. The default running header is course / title / version, and the default running footer is date / blank / `Page X of Y`. The first-page style, `ximeraExamFirst`, starts empty and is selected **explicitly** with `\thispagestyle{ximeraExamFirst}` when desired; it is not automatically applied to the exam cover. The `examcover` environment uses an empty page style. The default `Page X of Y` footer uses the non-linking `\pageref*{LastPage}` form so the page count is not exposed as an unnecessary hyperlink.
 
 Use `{}` for any field you want blank. Header/footer content is treated as an **artifact** in tagged PDF, rather than repeated as substantive reading content on every page; put essential instructions or information in the document body as well.
 
@@ -393,20 +430,22 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 | --- | --- |
 | `\usepackage[points]{ximeraExam}` / `[standards]` | Select assessment mode. |
 | `\ximeraExamMode` | Expand to the current assessment mode name (`points` or `standards`). |
-| `questions`; `\question[metadata]`; `\bonusquestion[metadata]` | Define the main question sequence, ordinary questions, and bonus questions; visible top-level question labels are H2 headings in tagged PDF output. |
+| `questions`; `\question[metadata]`; `\bonusquestion[metadata]` | Define the main question list, ordinary questions, and bonus questions; `questions` opens with an H2 section heading and the questions are tagged as list items. |
 | `parts` / `\part[metadata]`; `subparts` / `\subpart[metadata]`; `subsubparts` / `\subsubpart[metadata]` | Nest assessment items. |
 | `\ximeraQuestion[metadata]{file.tex}` | Import a complete Ximera activity as one exam question. |
 | `\printanswers`; `\noprintanswers` | Choose key or student rendering, globally or within a TeX group. |
 | `multipleChoice[layout=vertical or horizontal,max-per-row=n]`; `\choice[correct]{...}` | Print capital-letter multiple-choice options; horizontal mode can limit and evenly spread choices by row. |
 | `\answerline[width=...,align=...]{label}` | Print an inline line with an empty label, or a standalone line with a nonempty label. |
-| `\answerlineWidth{length}`; `\answerlineAlign{left or right}`; `\answerlineInKey{hide or show}` | Set line length, standalone alignment, and standalone visibility in keys. |
+| `\answerlineWidth{length}`; `\answerlineAlign{left or right}`; `\answerlineInKey{hide or show}`; `\answerlineSpokenText{text}` | Set line length, standalone alignment, standalone visibility in keys, and the screen-reader text for the writing rule. |
 | `solution` / `\begin{solution}[space]` | Hide solutions and reserve optional fixed/stretchable response space for students; print a breakable boxed solution in keys. |
 | `\pointsLabel{metadata}`; `\standardsLabel{metadata}`; `\markStandard{code}` | Customize printed metadata labels and individually marked standards. |
 | `\questionnumber`, `\partnumber`, `\subpartnumber`, `\subsubpartnumber` | Customize numbering presentation. |
 | `\questionlabel`, `\bonusquestionlabel`, `\partlabel`, `\subpartlabel`, `\subsubpartlabel` | Customize visible item labels. |
 | `\examtitle{...}`, `\examcourse{...}`, `\examdate{...}`, `\examversion{...}` | Store cover/page-furniture information. |
 | `\examtitletext`, `\examcoursetext`, `\examdatetext`, `\examversiontext` | Retrieve stored information. |
-| `\makeexamcover`; `examcover`; `\examcoverheading{...}` | Produce default/custom cover and tagged cover heading. |
+| `\makeexamcover`; `examcover`; `\examcoverheading{...}` | Produce default/custom cover and tagged H1 cover heading. |
+| `\examsectionheading{...}`; `\examsectionheadingformat{...}`; `\questionsheading` | Create/customize tagged H2 section headings; `\questionsheading` controls the heading automatically printed by `questions`. |
+| `\spoken{printed}{spoken}` | Print one form while supplying different PDF `ActualText` to assistive technology. |
 | `\gradetable[h or v][earned or noearned][max]` | Points-mode summary. |
 | `\standardstable[h or v][earned or noearned][max]` | Standards-mode summary. |
 | `\firstpageheader{L}{C}{R}`, `\firstpagefooter{L}{C}{R}` | Set fields for explicitly selected first-page style. |
@@ -415,11 +454,18 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 
 ## 12. Accessibility and current limitations
 
-Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. The package's built-in heading structure uses the exam cover title as H1 and each visible top-level **Question N** / **Bonus Question N** label as H2; nested parts remain list items. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
+Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. The package's built-in structure uses the exam cover title as H1, H2 headings for major exam sections such as **Questions**, and tagged lists for the top-level questions and their nested parts. Answer-line rules carry spoken `ActualText`, and grade/standards-table headers include explicit row/column scope information for screen-reader navigation. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
 
 Known limits: summary data require another compile; the imported activity's own preamble is skipped; the package does not generate model answers you have not authored; formatting of large diagrams, response spaces, and custom covers remains the exam author's responsibility. Although this package creates an accessible tagged structure for its supported exam features, it cannot guarantee that arbitrary custom LaTeX or TikZ in an imported problem is accessible without author review.
 
 
-### Imported activity hierarchy and printable word choices (1.7.1)
+### Imported activity hierarchy and printable word choices
 
 For `\ximeraQuestion`, the outermost problem-like environment supplies the exam question body. Nested problem-like environments become exam parts and subparts rather than additional “Exercise” headings. In PDF output, `\wordChoice` presents its options as a vertical, lettered multiple-choice list; the short list stays together, and an immediately following period in the activity source is suppressed so it does not appear on a separate line. The correct option receives the existing `(correct)` marker in answer keys. Ximera’s HTML word-choice behavior is unchanged; given-word mode continues to use the original rendering.
+
+
+### Accessibility additions in 1.8.0
+
+Version 1.8.0 changes the tagged-PDF structure of the top-level exam questions from individual H2 headings to a list of question items under an H2 **Questions** section. This improves list navigation for assistive technology while leaving the normal `\question` / `\bonusquestion` authoring syntax unchanged.
+
+It also adds `\examsectionheading`, `\spoken`, and `\answerlineSpokenText`; supplies direct table-header scope attributes in addition to LaTeX's table classes; prints summary-table question headers as `Q1`, `Q2`, … with a blank corner cell; and uses an unlinked page-count reference in the default running footer.
