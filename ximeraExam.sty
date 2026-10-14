@@ -1,5 +1,10 @@
 %% ximeraExam.sty
 %% Exam-style structure for Ximera documents.
+%% Version 1.8.2 -- Front-page-only builds append " Front Page" to the
+%%                  regular exam title, including the PDF title metadata.
+%% Version 1.8.1 -- Adds an explicit \buildFrontPage command for tagged
+%%                  front-page-only builds that reuse question-summary and
+%%                  full-page-count data from a completed full build.
 %% Version 1.8.0 -- Top-level questions are tagged as a list (L/LI) instead of H2 headings.
 %%                  New \examsectionheading (tagged H2) for cover sections; the questions
 %%                  environment opens with an H2 whose text is \questionsheading.
@@ -14,8 +19,8 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesExplPackage
   {ximeraExam}
-  {2026-10-13}
-  {1.8.0}
+  {2026-10-14}
+  {1.8.2}
   {Exam-style question structure for Ximera}
 
 \RequirePackage{l3keys2e}
@@ -243,6 +248,133 @@
    \bool_gset_false:N \g_ximeraexam_previous_ready_bool}
 \cs_new_protected:Npn \ximeraExamAuxEnd { }
 
+% -----------------------------------------------------------------------------
+% Tagged front-page-only builds
+% -----------------------------------------------------------------------------
+%
+% A full exam writes a small .xexam sidecar containing only the information the
+% cover needs on a later run: resolved question metadata and the full exam page
+% count. A front-page-only build reads that sidecar, recreates the cover from the
+% original source, and stops after examcover. Because the cover is re-typeset
+% rather than extracted from an existing PDF, it receives a fresh, valid tag tree.
+\bool_new:N \g_ximeraexam_frontpage_only_bool
+\tl_new:N   \g_ximeraexam_frontpage_source_tl
+\iow_new:N  \g_ximeraexam_frontdata_iow
+
+% Front-page-only behavior is opt-in. Supply the basename of the completed
+% full exam whose .xexam sidecar should be used, for example
+%   \buildFrontPage{1151M3FormE_Au26}
+% in the dedicated front-page build.
+\NewDocumentCommand \buildFrontPage { m }
+  {
+    \bool_gset_true:N \g_ximeraexam_frontpage_only_bool
+    \tl_gset:Nx \g_ximeraexam_frontpage_source_tl {#1}
+  }
+
+% A tiny driver may request front-page mode before this package is loaded:
+%   \def\ximeraExamFrontPageSource{1151M2Sample}
+%   \input{1151M2Sample.tex}
+% The full exam then loads ximeraExam normally, and this bridge turns that
+% preexisting marker into the same state as \buildFrontPage{...}.
+\cs_if_exist:NT \ximeraExamFrontPageSource
+  { \exp_args:No \buildFrontPage { \ximeraExamFrontPageSource } }
+
+% Restore a LastPage-style label without a hyperlink destination. This lets
+% existing cover source such as \pageref{LastPage} print the full exam's page
+% count without creating a link to a page that is absent from the one-page PDF.
+\cs_new_protected:Npn \ximeraExamFrontPageCount #1
+  { \cs_gset:cpn { r@LastPage } { {}{#1}{}{}{} } }
+
+\cs_new_protected:Npn \ximeraexam_frontdata_load:
+  {
+    \bool_if:NT \g_ximeraexam_frontpage_only_bool
+      {
+        \tl_set:Nx \l_tmpa_tl
+          { \tl_use:N \g_ximeraexam_frontpage_source_tl .xexam }
+        \file_if_exist:VTF \l_tmpa_tl
+          { \exp_args:NV \file_input:n \l_tmpa_tl }
+          {
+            \PackageError{ximeraExam}
+              {Front-page~data~file~'\tl_use:N \l_tmpa_tl'~not~found}
+              {Compile~the~full~exam~twice~before~building~the~front~page.}
+          }
+      }
+  }
+
+% Write the sidecar after a full build. The page count intentionally comes from
+% the preceding run's LastPage label, matching the package's existing two-pass
+% summary-table workflow.
+\cs_new_protected:Npn \ximeraexam_frontdata_write:
+  {
+    \bool_if:NF \g_ximeraexam_frontpage_only_bool
+      {
+        \seq_if_empty:NF \g_ximeraexam_question_order_seq
+          {
+            \prop_gclear:N \g_ximeraexam_resolved_prop
+            \seq_reverse:N \g_ximeraexam_nodes_seq
+            \seq_map_inline:Nn \g_ximeraexam_nodes_seq
+              {
+                \ximeraexam_resolve:nN {##1} \l_tmpd_tl
+                \prop_gput:NnV \g_ximeraexam_resolved_prop {##1} \l_tmpd_tl
+              }
+            \seq_reverse:N \g_ximeraexam_nodes_seq
+            \iow_open:Nn \g_ximeraexam_frontdata_iow { \jobname.xexam }
+            \iow_now:Nx \g_ximeraexam_frontdata_iow
+              { \string\ximeraExamAuxBegin }
+            \seq_map_inline:Nn \g_ximeraexam_question_order_seq
+              {
+                \ximeraexam_resolve:nN {Q##1} \l_tmpd_tl
+                \prop_get:NnN
+                  \g_ximeraexam_question_bonus_prop {##1} \l_tmpe_tl
+                \iow_now:Nx \g_ximeraexam_frontdata_iow
+                  {
+                    \string\ximeraExamAuxEntry
+                      {##1}
+                      {\exp_not:V \l_tmpd_tl}
+                      {\exp_not:V \l_tmpe_tl}
+                  }
+              }
+            \iow_now:Nx \g_ximeraexam_frontdata_iow
+              { \string\ximeraExamAuxEnd }
+            \iow_now:Nx \g_ximeraexam_frontdata_iow
+              {
+                \string\ximeraExamFrontPageCount
+                  { \getpagerefnumber{LastPage} }
+              }
+            \iow_close:N \g_ximeraexam_frontdata_iow
+          }
+      }
+  }
+
+\AtBeginDocument{\ximeraexam_frontdata_load:}
+\AddToHook{enddocument/afterlastpage}{\ximeraexam_frontdata_write:}
+
+% In front-page mode, stop only *after* LaTeX has completely finished
+% \end{examcover}.  Calling \end{document} from the environment's own end code
+% is too early: LaTeX still has examcover on its environment stack at that point.
+%
+% The env/examcover/after hook runs after the environment end code and after the
+% environment group has closed.  Select the next action first so no conditional
+% remains open when \end{document} is executed.
+\cs_new_protected:Npn \ximeraexam_frontpage_end_document:
+  { \end{document} }
+
+\cs_new_protected:Npn \ximeraExamMaybeEndAfterCover
+  {
+    \bool_if:NTF \g_ximeraexam_frontpage_only_bool
+      {
+        \cs_set_eq:NN
+          \ximeraexam_frontpage_next:
+          \ximeraexam_frontpage_end_document:
+      }
+      {
+        \cs_set_eq:NN
+          \ximeraexam_frontpage_next:
+          \prg_do_nothing:
+      }
+    \ximeraexam_frontpage_next:
+  }
+
 \ExplSyntaxOff
 
 
@@ -261,13 +393,27 @@
       { \AddToDocumentProperties[hyperref]{pdftitle}{#1} }
   }
 
+% Front-page-only builds use the same authored title with " Front Page"
+% appended. This changes both the visible title exposed by \examtitletext and
+% the PDF title metadata, while ordinary full-exam builds remain unchanged.
 \NewDocumentCommand{\examtitle}{m}
   {
-    \tl_gset:Nn \g_ximeraexam_title_tl {#1}
-    \ximeraexam_set_pdf_title:n {#1}
-    \cs_if_exist:NT \hypersetup
-      { \hypersetup{pdftitle={#1}} }
-    \cs_if_exist:NT \title { \title{#1} }
+    \bool_if:NTF \g_ximeraexam_frontpage_only_bool
+      {
+        \tl_gset:Nn \g_ximeraexam_title_tl {#1\space Front\space Page}
+        \ximeraexam_set_pdf_title:n {#1\space Front\space Page}
+        \cs_if_exist:NT \hypersetup
+          { \hypersetup{pdftitle={#1\space Front\space Page}} }
+        \cs_if_exist:NT \title
+          { \title{#1\space Front\space Page} }
+      }
+      {
+        \tl_gset:Nn \g_ximeraexam_title_tl {#1}
+        \ximeraexam_set_pdf_title:n {#1}
+        \cs_if_exist:NT \hypersetup
+          { \hypersetup{pdftitle={#1}} }
+        \cs_if_exist:NT \title { \title{#1} }
+      }
   }
 
 \NewDocumentCommand{\examcourse}{m}
@@ -548,6 +694,10 @@
     \endgroup
     \clearpage
   }
+
+% Front-page-only builds must stop after the examcover environment has been
+% completely closed, not from inside its end code.
+\AddToHook{env/examcover/after}{\ximeraExamMaybeEndAfterCover}
 
 % Provide a simple default cover without using Ximera's custom \maketitle.
 % Ximera formats section headings through titlesec, so the cover title uses a
@@ -1442,6 +1592,7 @@
 % values can be used without teaching this package any naming conventions.
 \RequirePackage{fancyhdr}
 \RequirePackage{lastpage}
+\RequirePackage{refcount}
 
 % Repeated page furniture should not be read as new content on every page.
 % Wrap each nonempty field in a PDF artifact; without tagging, print it normally.
