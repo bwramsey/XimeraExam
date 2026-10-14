@@ -75,6 +75,7 @@ By default, `\begin{questions}` prints a visible **Questions** heading. Change i
 - **Response space:** Reserve fixed or stretchable student writing space with `\begin{solution}[2in]` or `\begin{solution}[\stretch{1}]`. Long solutions can continue across pages in the answer key.
 - **Answer lines:** Add inline or standalone writing lines and configure their width, standalone alignment, answer-key visibility, and screen-reader text for the writing rule. Inline lines remain visible in keys; standalone labeled lines are hidden in keys by default.
 - **Exam layout:** Build a default or custom cover and configure running headers and footers. The cover title is tagged as H1; the `questions` environment opens with an H2 section heading and the top-level questions are tagged as a list.
+- **Standalone front page:** A normal full-exam build writes the metadata needed to produce a separate, properly tagged front-page PDF with the correct grade table, full-exam page count, and a PDF title such as `Midterm 2 Front Page`.
 - **Print-friendly choices:** Ordinary `multipleChoice` items use capital-letter labels and may be printed vertically or horizontally; horizontal choices can be limited with `max-per-row`. In PDFs, `\wordChoice` prints as a vertical, lettered list. Ximera's interactive HTML behavior remains unchanged.
 - **Accessibility helpers:** Use `\examsectionheading{...}` for tagged H2 sections, `\spoken{printed}{spoken}` when visible and spoken text should differ, and `\answerlineSpokenText{...}` to control how writing lines are announced.
 - **Tagged graphics:** TikZ graphics can carry meaningful alternative text using the tagged-PDF `alt={...}` option on `tikzpicture`.
@@ -88,6 +89,30 @@ By default, `\begin{questions}` prints a visible **Questions** heading. Change i
 - `regression.tex` and `import-regression.tex` — regression test sources; the import test uses the included `Q1SP17REDUX.tex` activity.
 
 Start with the template in `example/` matching your assessment mode. Use `example/calculus_feature_example.tex` when you want to see several package features working together. Consult **`user-guide.md`** for the full explanation of question structure, multiple-choice layout, answer lines, answer-key behavior, activity imports, accessibility structure, and page layout.
+
+## Standalone front page
+
+A normal full-exam build writes a small `.xexam` sidecar file containing the resolved question-summary data and full-exam page count. This can be used to re-typeset the original `examcover` as a separate, properly tagged one-page PDF.
+
+For an exam source named `exam.tex`, create a tiny driver such as:
+
+```latex
+% exam_front.tex
+\def\ximeraExamFrontPageSource{exam}
+\input{exam.tex}
+```
+
+Compile the full exam twice first so its `.xexam` data are current, then compile the front-page driver twice so its own references settle:
+
+```bash
+lualatex exam.tex
+lualatex exam.tex
+
+lualatex exam_front.tex
+lualatex exam_front.tex
+```
+
+The front-page build uses the same source and preamble as the full exam, stops immediately after the `examcover`, reuses the full exam's grade/standards-table data and page count, and automatically appends `Front Page` to the exam title and PDF title metadata. If the required `.xexam` file is missing, compile the full exam first.
 
 ## PDF accessibility
 

@@ -1,7 +1,7 @@
-# ximeraExam 1.8.0 — User Guide
+# ximeraExam 1.8.2 — User Guide
 
 **Writing printable Ximera exams with points or standards**  
-**Status:** Version 1.8.0 (October 13, 2026).
+**Status:** Version 1.8.2 (October 14, 2026).
 
 `ximeraExam.sty` is a package used *with* `ximera.cls`, not a separate document class. It supplies exam questions and nested parts, imports existing Ximera activities, student/answer-key rendering, points or standards summaries, cover information, and customizable page furniture. It is intended for LuaLaTeX output; the PDF/UA-2 setup below requires a sufficiently recent LaTeX installation (tested by the project with TeX Live 2026).
 
@@ -38,7 +38,7 @@ Put `ximeraExam.sty` somewhere LaTeX can find it (for example, alongside your ex
 
 The first question **inherits 5 points** from its parts; the second question has an explicit 5-point allocation. Run LuaLaTeX **twice** to populate a cover-page summary and page-count references. To create a standards exam, change `[points]` to `[standards]` and use standards codes instead of numeric point allocations (see §3).
 
-**Build:** `lualatex exam.tex` twice. You may then validate the resulting PDF with `verapdf --defaultflavour ua2 exam.pdf`; see §12 for the limits of automated validation.
+**Build:** `lualatex exam.tex` twice. You may then validate the resulting PDF with `verapdf --defaultflavour ua2 exam.pdf`; see §13 for the limits of automated validation.
 
 ## 2. Questions and nested parts
 
@@ -358,7 +358,65 @@ For a custom cover, use `examcover`:
 
 `examcover` leaves the first page's header/footer empty by default and starts a new page on exit. A custom cover does **not automatically print the title**, so include `\examcoverheading{...}` when you want a tagged H1. You can redefine the default-cover hooks `\examnameprompt`, `\examnamefield`, `\examcoverbeforetitle`, `\examcoveraftertitle`, and `\examcoverheadingformat{...}` without replacing the cover-building commands. For second-level sections such as **Instructions**, use `\examsectionheading{...}`; it creates a tagged H2 without borrowing Ximera's normal sectioning commands.
 
-## 8. Grade and standards tables
+## 8. Standalone front-page builds
+
+A full exam can also produce a separate, properly tagged PDF containing only its `examcover`. This is useful when the front instruction page must be distributed separately while preserving the real grade/standards table and the page count from the complete exam.
+
+The full exam remains an ordinary standalone Ximera document. For example, if the complete source is:
+
+```text
+1151M2Sample.tex
+```
+
+create a tiny driver:
+
+```latex
+% 1151M2Sample_front.tex
+\def\ximeraExamFrontPageSource{1151M2Sample}
+\input{1151M2Sample.tex}
+```
+
+Do **not** duplicate the exam preamble in the driver. The driver defines the front-page source name and then inputs the complete exam source from its first line. When `ximeraExam` loads, it detects that definition, loads the previously generated sidecar data, and enters front-page-only mode.
+
+Compile the full exam twice first:
+
+```bash
+lualatex 1151M2Sample.tex
+lualatex 1151M2Sample.tex
+```
+
+The normal full build writes:
+
+```text
+1151M2Sample.xexam
+```
+
+containing the resolved question-summary data and the full exam's total page count. Then compile the front-page driver twice:
+
+```bash
+lualatex 1151M2Sample_front.tex
+lualatex 1151M2Sample_front.tex
+```
+
+The result is a freshly typeset, standalone tagged PDF. It uses the original `examcover`, stops after that environment has completely closed, and therefore does not extract or copy a page from the full PDF.
+
+The front-page build preserves:
+
+- the full exam's resolved `\gradetable` or `\standardstable` values;
+- the full exam's total page count, so a field such as `Page 1 of 5` remains correct;
+- the same cover structure and accessibility tagging as a normal LaTeX build.
+
+It also automatically appends **`Front Page`** to the regular exam title. For example:
+
+```latex
+\examtitle{Midterm 2}
+```
+
+produces **Midterm 2** in the full exam and **Midterm 2 Front Page** in the standalone front-page build. The appended wording is also used for the PDF title metadata.
+
+If the `.xexam` file is missing or stale, compile the full exam twice before rebuilding the front-page driver. The `.xexam` file is package-generated data and should not be written by hand.
+
+## 9. Grade and standards tables
 
 Use `\gradetable` in points mode and `\standardstable` in standards mode. They read **the preceding LaTeX run's question data** and may appear on the cover, *before* the actual `questions` environment. On a first compile the summary may say it is available after the next run.
 
@@ -374,7 +432,7 @@ Use `\gradetable` in points mode and `\standardstable` in standards mode. They r
 
 The **first** optional argument chooses `h` (horizontal, default) or `v` (vertical). The **second** is `noearned` to omit the earned row/column (default: include it). The **third** is a positive integer maximum number of *question columns per horizontal block*; its defaults are 4 for points and 3 for standards. The third argument has no useful effect on a vertical table. A horizontal table can wrap across multiple blocks. Question headings in the summary tables are printed as **Q1**, **Q2**, and so on; the upper-left corner is intentionally blank. The horizontal points table includes a regular **Total** column and, when bonus points exist, a separate **Bonus** column immediately to its right in the final block. The vertical points table shows the bonus total in a separate row. The regular total excludes bonus points; the standards table lists codes without a numerical total. Header cells are tagged with explicit row/column scope information for screen-reader table navigation. Do not mix `\gradetable` with standards mode or `\standardstable` with points mode.
 
-## 9. Headers, footers, and page styles
+## 10. Headers, footers, and page styles
 
 The page-furniture commands take **three mandatory arguments**, in **left, center, right** order:
 
@@ -389,7 +447,7 @@ The `ximeraExamRunning` style is selected automatically at the beginning of the 
 
 Use `{}` for any field you want blank. Header/footer content is treated as an **artifact** in tagged PDF, rather than repeated as substantive reading content on every page; put essential instructions or information in the document body as well.
 
-## 10. Worked points-exam pattern
+## 11. Worked points-exam pattern
 
 This short pattern combines a custom cover, inherited points, a key-ready answer, and a bonus:
 
@@ -424,7 +482,7 @@ This short pattern combines a custom cover, inherited points, a key-ready answer
 
 For a **standards** example, see the §3 standards question pattern and use `\standardstable` instead of `\gradetable`. Starter templates for points mode and standards mode, plus a Calculus I worked example, are available separately as `.tex` files in the project’s templates collection.
 
-## 11. Command reference
+## 12. Command reference
 
 | Public command or environment | Purpose |
 | --- | --- |
@@ -444,6 +502,7 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 | `\examtitle{...}`, `\examcourse{...}`, `\examdate{...}`, `\examversion{...}` | Store cover/page-furniture information. |
 | `\examtitletext`, `\examcoursetext`, `\examdatetext`, `\examversiontext` | Retrieve stored information. |
 | `\makeexamcover`; `examcover`; `\examcoverheading{...}` | Produce default/custom cover and tagged H1 cover heading. |
+| `\def\ximeraExamFrontPageSource{basename}` in a tiny driver | Request a standalone front-page-only build using `basename.xexam` from the completed full exam. |
 | `\examsectionheading{...}`; `\examsectionheadingformat{...}`; `\questionsheading` | Create/customize tagged H2 section headings; `\questionsheading` controls the heading automatically printed by `questions`. |
 | `\spoken{printed}{spoken}` | Print one form while supplying different PDF `ActualText` to assistive technology. |
 | `\gradetable[h or v][earned or noearned][max]` | Points-mode summary. |
@@ -452,9 +511,9 @@ For a **standards** example, see the §3 standards question pattern and use `\st
 | `\runningheader{L}{C}{R}`, `\runningfooter{L}{C}{R}` | Set running-page fields. |
 | `\thispagestyle{ximeraExamFirst}` | Explicitly select the first-page layout. |
 
-## 12. Accessibility and current limitations
+## 13. Accessibility and current limitations
 
-Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. The package's built-in structure uses the exam cover title as H1, H2 headings for major exam sections such as **Questions**, and tagged lists for the top-level questions and their nested parts. Answer-line rules carry spoken `ActualText`, and grade/standards-table headers include explicit row/column scope information for screen-reader navigation. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
+Start `\DocumentMetadata` **before** `\documentclass`; use LuaLaTeX with `unicode-math`, and validate the completed PDF with veraPDF's `ua2` profile. Standalone front-page builds are re-typeset as their own tagged LaTeX documents rather than extracted from the full PDF, so their structure tree is generated normally. The package's built-in structure uses the exam cover title as H1, H2 headings for major exam sections such as **Questions**, and tagged lists for the top-level questions and their nested parts. Answer-line rules carry spoken `ActualText`, and grade/standards-table headers include explicit row/column scope information for screen-reader navigation. The project has successfully compiled and automatically validated a five-page historical exam with a graph, a piecewise function, nested questions, an array/table of values, and a cover grade table. Automated validation is **not equivalent** to checking mathematical reading order, graph descriptions, meaningful table headers, visual contrast, and usability with assistive technology; inspect these separately for each real exam.
 
 Known limits: summary data require another compile; the imported activity's own preamble is skipped; the package does not generate model answers you have not authored; formatting of large diagrams, response spaces, and custom covers remains the exam author's responsibility. Although this package creates an accessible tagged structure for its supported exam features, it cannot guarantee that arbitrary custom LaTeX or TikZ in an imported problem is accessible without author review.
 
@@ -464,8 +523,8 @@ Known limits: summary data require another compile; the imported activity's own 
 For `\ximeraQuestion`, the outermost problem-like environment supplies the exam question body. Nested problem-like environments become exam parts and subparts rather than additional “Exercise” headings. In PDF output, `\wordChoice` presents its options as a vertical, lettered multiple-choice list; the short list stays together, and an immediately following period in the activity source is suppressed so it does not appear on a separate line. The correct option receives the existing `(correct)` marker in answer keys. Ximera’s HTML word-choice behavior is unchanged; given-word mode continues to use the original rendering.
 
 
-### Accessibility additions in 1.8.0
+### Accessibility and front-page additions in 1.8.x
 
 Version 1.8.0 changes the tagged-PDF structure of the top-level exam questions from individual H2 headings to a list of question items under an H2 **Questions** section. This improves list navigation for assistive technology while leaving the normal `\question` / `\bonusquestion` authoring syntax unchanged.
 
-It also adds `\examsectionheading`, `\spoken`, and `\answerlineSpokenText`; supplies direct table-header scope attributes in addition to LaTeX's table classes; prints summary-table question headers as `Q1`, `Q2`, … with a blank corner cell; and uses an unlinked page-count reference in the default running footer.
+It also adds `\examsectionheading`, `\spoken`, and `\answerlineSpokenText`; supplies direct table-header scope attributes in addition to LaTeX's table classes; prints summary-table question headers as `Q1`, `Q2`, … with a blank corner cell; and uses an unlinked page-count reference in the default running footer. Version 1.8.1/1.8.2 additionally adds the `.xexam` sidecar and standalone front-page workflow described in §8, including automatic `Front Page` title metadata.
